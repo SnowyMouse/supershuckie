@@ -19,6 +19,7 @@ void GameRenderWidget::set_dimensions(unsigned screen_count, const SuperShuckieS
         scale = 1;
     }
 
+    this->current_scale = scale;
     this->scale(scale, scale);
     this->setTransform(QTransform::fromScale(scale, scale));
 
@@ -32,17 +33,26 @@ void GameRenderWidget::set_dimensions(unsigned screen_count, const SuperShuckieS
     this->total_width = 0;
     this->total_height = 0;
 
+    bool horizontal_nds = this->main_window->horizontal_nds->isChecked();
+
     for(unsigned i = 0; i < screen_count; i++) {
         ScreenData screen;
         screen.width = screen_data[i].width;
         screen.height = screen_data[i].height;
         screen.pixmap_item = this->scene->addPixmap(screen.pixmap);
 
-        screen.x = this->total_width;
+        if(horizontal_nds) {
+            screen.x = this->total_width;
+            this->total_width += screen.width;
+            this->total_height = this->total_height > screen.height ? this->total_height : screen.height;
+        }
+        else {
+            screen.y = this->total_height;
+            this->total_height += screen.height;
+            this->total_width = this->total_width > screen.width ? this->total_width : screen.width;
+        }
+
         screen.pixmap_item->setOffset(screen.x, screen.y);
-        this->total_width += screen.width;
-        
-        this->total_height = this->total_height > screen.height ? this->total_height : screen.height;
         this->screens.emplace_back(screen);
     }
     
@@ -159,4 +169,40 @@ void GameRenderWidget::dropEvent(QDropEvent *event) {
     if(path) {
         this->main_window->load_rom(*path);
     }
+}
+
+void GameRenderWidget::mousePressEvent(QMouseEvent *event) {
+    auto pos = event->position();
+    int x = pos.x() / this->current_scale;
+    int y = pos.y() / this->current_scale;
+
+    bool horizontal_nds = this->main_window->horizontal_nds->isChecked();
+
+    if(this->screens.size() == 2) {
+        auto &screen = this->screens[1];
+
+        if(horizontal_nds) {
+            x -= screen.x;
+        }
+        else {
+            y -= screen.y;
+        }
+
+        if(x < 0 || x > screen.width || y < 0 || y > screen.height) {
+            return;
+        }
+        supershuckie_frontend_set_touch(this->main_window->frontend, true, x, y);
+    }
+}
+
+void GameRenderWidget::mouseDoubleClickEvent(QMouseEvent *event) {
+    this->mousePressEvent(event);
+}
+
+void GameRenderWidget::mouseReleaseEvent(QMouseEvent *) {
+    supershuckie_frontend_set_touch(this->main_window->frontend, false, 0, 0);
+}
+
+void GameRenderWidget::mouseMoveEvent(QMouseEvent *event) {
+    this->mousePressEvent(event);
 }

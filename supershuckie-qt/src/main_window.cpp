@@ -22,6 +22,7 @@
 #include <supershuckie/supershuckie.h>
 
 #include "ask_for_text_dialog.hpp"
+#include "nds_date_dialog.hpp"
 #include "select_item_dialog.hpp"
 #include "error.hpp"
 #include "file_rw.hpp"
@@ -37,6 +38,7 @@ static const char *USE_NUMBER_KEYS_FOR_QUICK_SLOTS = "qt__number_keys_for_quick_
 static const char *WINDOW_XY = "qt__window_xy";
 static const char *DISPLAY_STATUS_BAR = "qt__display_status_bar";
 static const char *KEYBOARD_REPLAY_CONTROLS_DISABLED = "qt__replay_controls_disabled";
+static const char *HORIZONTAL_NDS = "qt__horizontal_nds";
 
 class SuperShuckie64::SuperShuckieTimestamp: public QWidget {
 public:
@@ -190,6 +192,11 @@ MainWindow::MainWindow(): QMainWindow() {
         this->use_number_keys_for_quick_slots = true;
         this->use_number_row_for_quick_slots->setChecked(true);
         this->set_quick_load_shortcuts();
+    }
+
+    const char *horizontal_nds = supershuckie_frontend_get_custom_setting(this->frontend, HORIZONTAL_NDS);
+    if(horizontal_nds != nullptr && horizontal_nds[0] == '1') {
+        this->horizontal_nds->setChecked(true);
     }
 
     const char *disable_keyboard_controls_replays = supershuckie_frontend_get_custom_setting(this->frontend, KEYBOARD_REPLAY_CONTROLS_DISABLED);
@@ -577,6 +584,14 @@ void MainWindow::set_up_settings_menu() {
     this->sgb_enabled = this->game_boy_settings->addAction("Enable SGB colors (experimental)");
     connect(this->sgb_enabled, SIGNAL(triggered()), this, SLOT(do_toggle_sgb()));
     this->sgb_enabled->setCheckable(true);
+
+    auto *nds_settings = this->settings_menu->addMenu("Nintendo DS settings");
+    auto *set_nds_date = nds_settings->addAction("Set date...");
+    connect(set_nds_date, SIGNAL(triggered()), this, SLOT(do_open_nds_date_dialog()));
+    
+    this->horizontal_nds = nds_settings->addAction("Arrange horizontally");
+    this->horizontal_nds->setCheckable(true);
+    connect(this->horizontal_nds, SIGNAL(triggered()), this, SLOT(do_toggle_horizontal_nds()));
 
     this->settings_menu->addSeparator();
 
@@ -1000,4 +1015,18 @@ void MainWindow::do_toggle_sgb() {
 void MainWindow::set_gbc_mode(std::uint8_t mode) {
     supershuckie_frontend_set_gbc_mode(this->frontend, mode);
     this->refresh_action_states();
+}
+
+void MainWindow::do_open_nds_date_dialog() noexcept {
+    auto *dialog = new NDSDateDialog(this);
+    dialog->exec();
+    delete dialog;
+}
+
+void MainWindow::do_toggle_horizontal_nds() {
+    supershuckie_frontend_set_custom_setting(this->frontend, HORIZONTAL_NDS, this->horizontal_nds->isChecked() ? "1" : "0");
+
+    // FIXME: this is a hack
+    this->set_video_scale(this->render_widget->current_scale+1);
+    this->set_video_scale(this->render_widget->current_scale-1);
 }

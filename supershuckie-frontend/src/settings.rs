@@ -53,6 +53,9 @@ pub struct Settings {
     #[serde(default = "GameBoySettings::default")]
     pub game_boy_settings: GameBoySettings,
 
+    #[serde(default = "NintendoDSSettings::default")]
+    pub nintendo_ds_settings: NintendoDSSettings,
+
     #[serde(default = "Controls::default")]
     pub controls: Controls,
 
@@ -119,9 +122,9 @@ impl ReplaySettings {
     const MAX_RECORDING_BLOB_SIZE_MB: fn() -> NonZeroU32 = || unsafe { NonZeroU32::new_unchecked(
         (ReplayFileRecorderSettings::default().minimum_uncompressed_bytes_per_blob / 1024 / 1024) as u32
     ) };
-    const AUTO_DECOMPRESS_REPLAYS_UPFRONT: fn() -> bool = || true;
+    const AUTO_DECOMPRESS_REPLAYS_UPFRONT: fn() -> bool = || false;
     const DEFAULT_MAX_ZSTD_COMPRESSION_LEVEL: fn() -> i32 = || ReplayFileRecorderSettings::default().compression_level;
-    const DEFAULT_FRAMES_PER_KEYFRAME: fn() -> NonZeroU64 = || unsafe { NonZeroU64::new_unchecked(60) };
+    const DEFAULT_FRAMES_PER_KEYFRAME: fn() -> NonZeroU64 = || unsafe { NonZeroU64::new_unchecked(120) };
     const AUTO_STOP_PLAYBACK_ON_INPUT: fn() -> bool = || false;
     const AUTO_UNPAUSE_ON_INPUT: fn() -> bool = || false;
     const AUTO_PAUSE_ON_RECORD: fn() -> bool = || false;
@@ -186,6 +189,55 @@ pub struct GameBoySettings {
 
     #[serde(default = "bool::default")]
     pub sgb: bool
+}
+
+#[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct NintendoDSSettings {
+    #[serde(default = "NintendoDSDate::default")]
+    pub date: NintendoDSDate,
+
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[repr(C)]
+pub struct NintendoDSDate {
+    pub year: u16,
+    pub month: u8,
+    pub day: u8,
+    pub hour: u8,
+    pub minute: u8,
+    pub second: u8
+}
+
+impl NintendoDSDate {
+    /// Clean up ranges.
+    pub fn get_cleaned(self) -> Self {
+        let mut cleaned = Self {
+            year: self.year.clamp(2000, 2099),
+            month: self.month.clamp(1, 12),
+            day: self.day.clamp(1, 31),
+            hour: self.hour.clamp(0, 23),
+            minute: self.minute.clamp(0, 59),
+            second: self.second.clamp(0, 59),
+        };
+
+        let max_days_per_month = |month: u8| match month {
+            2 => 29,
+            4|6|9|11 => 30,
+            _ => 31
+        };
+
+        cleaned.day = cleaned.day.min(max_days_per_month(cleaned.month));
+
+        // handle leap years
+        //
+        // (the % 100/400 is technically redundant since the range is 2000-2099, and 2000 was a leap year; idc)
+        if cleaned.month == 2 && cleaned.year % 4 == 0 && (cleaned.year % 100 != 0 || cleaned.year % 400 == 0) {
+            cleaned.day = cleaned.day.min(28);
+        }
+
+        cleaned
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Debug, Serialize, Deserialize, Default, TryFromPrimitive)]
@@ -336,17 +388,6 @@ impl Control {
             Control::Turbo => false,
             Control::Reset => false,
             Control::Pause => false
-        }
-    }
-
-    /// Return true if this button spoils something.
-    pub const fn is_spoiler(self) -> bool {
-        match self {
-            Control::L => true,
-            Control::R => true,
-            Control::X => true,
-            Control::Y => true,
-            _ => false
         }
     }
 

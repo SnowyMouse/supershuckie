@@ -38,12 +38,18 @@ impl GameBoyColor {
     pub fn new_from_rom(
         rom: &[u8],
         bios: &[u8],
+        sram: Option<&[u8]>,
         model: Model
     ) -> Self {
         let mut core = Gameboy::new(model);
         core.set_rtc_mode(RtcMode::Accurate);
         core.load_boot_rom(bios);
         core.load_rom(rom);
+
+        if let Some(sram) = sram {
+            core.load_sram(sram);
+        };
+
         core.set_rgb_encoder(encode_a8r8g8b8);
         core.set_rendering_enabled(true);
         core.set_border_mode(BorderMode::Never);

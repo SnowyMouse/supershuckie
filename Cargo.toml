@@ -4,7 +4,8 @@ members = [
     "supershuckie-pokeabyte-integration",
     "supershuckie-replay-recorder",
     "supershuckie-frontend",
-    "supershuckie-frontend-c"
+    "supershuckie-frontend-c",
+    "melonds-rs"
 ]
 resolver = "3"
 
@@ -19,6 +20,7 @@ supershuckie-replay-recorder = { version = "0.1.2", path = "supershuckie-replay-
 supershuckie-pokeabyte-integration = { version = "0.1.2", path = "supershuckie-pokeabyte-integration" }
 supershuckie-core = { version = "0.1.2", path = "supershuckie-core" }
 supershuckie-frontend = { version = "0.1.2", path = "supershuckie-frontend" }
+melonds-rs = { version = "0.1.2", path = "melonds-rs" }
 
 num_enum = "0.7.5"
 tinyvec = { version = "1.10.0", features = ["alloc"], default-features = false }
@@ -29,3 +31,8 @@ cc = "1.2.46"
 byteorder = "1.5.0"
 safeboy = "0.3.0-beta.6"
 serde_json = "1.0.145"
+
+[profile.release]
+lto = true
+opt-level = 3
+panic = "abort"

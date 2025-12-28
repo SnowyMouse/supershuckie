@@ -13,6 +13,8 @@ pub type UnsignedInteger = u64;
 #[allow(missing_docs)]
 pub type TimestampMillis = UnsignedInteger;
 #[allow(missing_docs)]
+pub type TimestampMicros = UnsignedInteger;
+#[allow(missing_docs)]
 pub type ByteVec = TinyVec<[u8; 16]>;
 
 /// Describes an individual packet.

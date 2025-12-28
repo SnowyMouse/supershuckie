@@ -5,7 +5,7 @@ use std::ptr::null;
 use std::slice::from_raw_parts_mut;
 use supershuckie_core::emulator::{ScreenData, ScreenDataEncoding};
 use supershuckie_frontend::{ConnectedControllerIndex, SuperShuckieFrontend, SuperShuckieFrontendCallbacks, UserInput};
-use supershuckie_frontend::settings::GameBoyMode;
+use supershuckie_frontend::settings::{GameBoyMode, NintendoDSDate};
 use supershuckie_frontend::util::UTF8CString;
 use crate::control_settings::SuperShuckieControlSettings;
 use crate::string_array::SuperShuckieStringArray;
@@ -702,4 +702,19 @@ pub extern "C" fn supershuckie_frontend_is_sgb_enabled(frontend: &SuperShuckieFr
 #[unsafe(no_mangle)]
 pub extern "C" fn supershuckie_frontend_set_sgb_enabled(frontend: &mut SuperShuckieFrontend, enabled: bool) {
     frontend.set_sgb_enabled(enabled);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_set_touch(frontend: &mut SuperShuckieFrontend, enabled: bool, x: u8, y: u8) {
+    frontend.set_touch(enabled.then_some((x, y)))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_get_nds_date(frontend: &SuperShuckieFrontend, date: &mut NintendoDSDate) {
+    *date = frontend.get_nds_date().get_cleaned();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_set_nds_date(frontend: &mut SuperShuckieFrontend, date: &NintendoDSDate) {
+    frontend.set_nds_date(*date);
 }

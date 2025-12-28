@@ -483,6 +483,30 @@ const char *supershuckie_frontend_get_name_of_controller(
 enum SuperShuckieReplayState supershuckie_frontend_get_replay_state(const struct SuperShuckieFrontendRaw *frontend);
 
 /**
+ * Set the touch
+ */
+void supershuckie_frontend_set_touch(struct SuperShuckieFrontendRaw *frontend, bool enabled, uint8_t x, uint8_t y);
+
+struct SuperShuckieNintendoDSDate {
+    uint16_t year;
+    uint8_t month;
+    uint8_t day;
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t second;
+};
+
+/**
+ * Get the Nintendo DS date
+ */
+void supershuckie_frontend_get_nds_date(const struct SuperShuckieFrontendRaw *frontend, struct SuperShuckieNintendoDSDate *date);
+
+/**
+ * Set the Nintendo DS date
+ */
+void supershuckie_frontend_set_nds_date(struct SuperShuckieFrontendRaw *frontend, const struct SuperShuckieNintendoDSDate *date);
+
+/**
  * Free the core
  *
  * Safety:

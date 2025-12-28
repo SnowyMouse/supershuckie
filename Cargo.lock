@@ -138,6 +138,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "melonds-rs"
+version = "0.1.2"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "memchr"
 version = "2.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -332,6 +339,7 @@ dependencies = [
 name = "supershuckie-core"
 version = "0.1.2"
 dependencies = [
+ "melonds-rs",
  "safeboy",
  "spin",
  "supershuckie-pokeabyte-integration",

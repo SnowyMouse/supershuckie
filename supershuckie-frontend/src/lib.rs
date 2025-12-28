@@ -10,8 +10,8 @@ use std::io::Write;
 use std::num::{NonZeroU64, NonZeroU8};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use supershuckie_core::emulator::{EmulatorCore, GameBoyColor, Input, Model, NullEmulatorCore, PartialReplayRecordMetadata, ScreenData};
-use supershuckie_core::{ReplayPlayerAttachError, Speed, SuperShuckieRapidFire, ThreadedSuperShuckieCore};
+use supershuckie_core::emulator::{EmulatorCore, GameBoyColor, Input, Model, PartialReplayRecordMetadata, ScreenData, NullEmulatorCore, NintendoDS};
+use supershuckie_core::{std_timestamp_provider, ReplayPlayerAttachError, Speed, SuperShuckieRapidFire, ThreadedSuperShuckieCore};
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash, ReplayPatchFormat};
 use supershuckie_replay_recorder::ByteVec;
 use supershuckie_replay_recorder::replay_file::playback::ReplayFilePlayer;
@@ -28,7 +28,8 @@ pub type ConnectedControllerIndex = u32;
 pub enum SuperShuckieEmulatorType {
     GameBoy,
     GameBoySGB2,
-    GameBoyColor
+    GameBoyColor,
+    NintendoDS
 }
 
 pub enum UserInput {
@@ -348,6 +349,12 @@ impl SuperShuckieFrontend {
         true
     }
 
+    #[inline]
+    pub fn set_touch(&mut self, at: Option<(u8, u8)>) {
+        self.current_input.touch = at;
+        self.core.enqueue_input(self.current_input);
+    }
+
     pub fn on_user_input(&mut self, input: UserInput, value: f64) {
         let Some(control) = (match input {
             UserInput::Keyboard { keycode } => self.settings.controls.keyboard_controls.get(&keycode).copied(),
@@ -467,6 +474,7 @@ impl SuperShuckieFrontend {
 
         let emulator_to_use = match extension.to_lowercase().as_str() {
             "gb" | "gbc" => self.choose_for_game_boy(data.as_slice()),
+            "nds" => SuperShuckieEmulatorType::NintendoDS,
             unknown => return Err(format!("Unknown or unsupported ROM file type .{unknown}").into())
         };
 
@@ -556,15 +564,33 @@ impl SuperShuckieFrontend {
     fn make_new_core(&self, rom_data: &[u8], save_file: Option<Vec<u8>>, emulator_type: SuperShuckieEmulatorType) -> Box<dyn EmulatorCore> {
         let bios = self.get_bios_for_core(emulator_type);
 
-        let mut core: Box<dyn EmulatorCore> = match emulator_type {
-            SuperShuckieEmulatorType::GameBoy => Box::new(GameBoyColor::new_from_rom(rom_data, bios.as_slice(), Model::DmgB)),
-            SuperShuckieEmulatorType::GameBoySGB2 => Box::new(GameBoyColor::new_from_rom(rom_data, bios.as_slice(), Model::Sgb2)),
-            SuperShuckieEmulatorType::GameBoyColor => Box::new(GameBoyColor::new_from_rom(rom_data, bios.as_slice(), Model::Cgb0))
-        };
+        let sram = save_file.as_ref().map(|i| i.as_slice());
 
-        if let Some(sram) = save_file {
-            let _ = core.load_sram(sram.as_slice()); // TODO: handle this?
-        }
+        let core: Box<dyn EmulatorCore> = match emulator_type {
+            SuperShuckieEmulatorType::GameBoy => Box::new(GameBoyColor::new_from_rom(rom_data, bios.as_slice(), sram, Model::DmgB)),
+            SuperShuckieEmulatorType::GameBoySGB2 => Box::new(GameBoyColor::new_from_rom(rom_data, bios.as_slice(), sram, Model::Sgb2)),
+            SuperShuckieEmulatorType::GameBoyColor => Box::new(GameBoyColor::new_from_rom(rom_data, bios.as_slice(), sram, Model::Cgb0)),
+
+            SuperShuckieEmulatorType::NintendoDS => {
+                let mut core = Box::new(NintendoDS::new_from_rom(
+                    rom_data,
+                    sram,
+                    std_timestamp_provider()
+                ));
+
+                let date = self.get_nds_date().get_cleaned();
+                core.set_date(
+                    date.year,
+                    date.month,
+                    date.day,
+                    date.hour,
+                    date.minute,
+                    date.second
+                );
+
+                core
+            }
+        };
 
         core
     }
@@ -590,7 +616,8 @@ impl SuperShuckieFrontend {
         // TODO: Let this be configurable.
         match emulator_kind {
             SuperShuckieEmulatorType::GameBoy | SuperShuckieEmulatorType::GameBoySGB2 => include_bytes!("../../bootrom/dmg/dmg.bin").to_vec(),
-            SuperShuckieEmulatorType::GameBoyColor => include_bytes!("../../bootrom/cgb/cgb_boot/cgb_boot_fast.bin").to_vec()
+            SuperShuckieEmulatorType::GameBoyColor => include_bytes!("../../bootrom/cgb/cgb_boot/cgb_boot_fast.bin").to_vec(),
+            SuperShuckieEmulatorType::NintendoDS => Vec::new()
         }
     }
 
@@ -701,6 +728,18 @@ impl SuperShuckieFrontend {
             Some(n) => { self.settings.custom.insert(setting.to_owned(), n); },
             None => { self.settings.custom.remove(setting); }
         }
+    }
+
+    /// Get the Nintendo DS date.
+    #[inline]
+    pub fn get_nds_date(&self) -> &NintendoDSDate {
+        &self.settings.nintendo_ds_settings.date
+    }
+
+    /// Set the Nintendo DS date.
+    #[inline]
+    pub fn set_nds_date(&mut self, date: NintendoDSDate) {
+        self.settings.nintendo_ds_settings.date = date;
     }
 
     /// Get a custom setting.

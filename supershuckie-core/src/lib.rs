@@ -17,7 +17,7 @@ use core::num::NonZeroU64;
 use supershuckie_replay_recorder::replay_file::playback::{ReplayFilePlayer, ReplaySeekError};
 use supershuckie_replay_recorder::replay_file::record::{NonBlockingReplayFileRecorder, ReplayFileRecorder, ReplayFileRecorderFns, ReplayFileSink, ReplayFileWriteError};
 use supershuckie_replay_recorder::replay_file::{blake3_hash_to_ascii, ReplayFileMetadata, ReplayHeaderBlake3Hash, ReplayPatchFormat};
-use supershuckie_replay_recorder::{ByteVec, Packet, TimestampMillis, UnsignedInteger};
+use supershuckie_replay_recorder::{ByteVec, Packet, TimestampMicros, TimestampMillis, UnsignedInteger};
 
 pub mod emulator;
 
@@ -127,7 +127,7 @@ impl SuperShuckieCore {
             mid_frame: false,
             input_scratch_buffer: Vec::new(),
             total_milliseconds: 0,
-            starting_milliseconds: timestamp_provider.get_timestamp(),
+            starting_milliseconds: timestamp_provider.get_timestamp_milliseconds(),
             game_speed: Default::default(),
             frames_since_last_keyframe: 0,
             frames_per_keyframe: 0,
@@ -184,14 +184,14 @@ impl SuperShuckieCore {
         let Some(paused_time) = self.paused_timer_at.take() else {
             return
         };
-        let unpaused_time = self.timestamp_provider.get_timestamp();
+        let unpaused_time = self.timestamp_provider.get_timestamp_milliseconds();
 
         self.starting_milliseconds = self.starting_milliseconds.wrapping_add(unpaused_time.wrapping_sub(paused_time));
     }
 
     fn restart_timer(&mut self) {
         self.paused_timer_at = None;
-        self.starting_milliseconds = self.timestamp_provider.get_timestamp();
+        self.starting_milliseconds = self.timestamp_provider.get_timestamp_milliseconds();
         self.total_milliseconds = 0;
         self.total_frames = 0;
     }
@@ -506,7 +506,7 @@ impl SuperShuckieCore {
         }
 
         if self.replay_player.is_none() && !self.mid_frame {
-            let ms = self.timestamp_provider.get_timestamp() - self.starting_milliseconds;
+            let ms = self.timestamp_provider.get_timestamp_milliseconds() - self.starting_milliseconds;
             self.total_milliseconds = ms;
 
             self.with_recorder(|f| {
@@ -707,9 +707,16 @@ impl Display for ReplayPlayerMetadataMismatchKind {
 ///
 /// The timestamp must never go backwards, although it does not necessarily always have to go
 /// forwards, either.
-pub trait MonotonicTimestampProvider {
-    /// Get the timestamp.
-    fn get_timestamp(&mut self) -> TimestampMillis;
+pub trait MonotonicTimestampProvider: Send {
+    /// Get the timestamp in milliseconds.
+    fn get_timestamp_microseconds(&mut self) -> TimestampMicros;
+
+    /// Get the timestamp in microseconds.
+    ///
+    /// This does not need to be implemented.
+    fn get_timestamp_milliseconds(&mut self) -> TimestampMillis {
+        self.get_timestamp_microseconds() / 1000
+    }
 }
 
 #[cfg(feature = "std")]
@@ -721,7 +728,7 @@ pub fn std_timestamp_provider() -> Box<dyn MonotonicTimestampProvider> {
 #[cfg(feature = "std")]
 mod std_timestamp_provider {
     use std::time::Instant;
-    use supershuckie_replay_recorder::TimestampMillis;
+    use supershuckie_replay_recorder::TimestampMicros;
     use crate::MonotonicTimestampProvider;
 
     pub struct StdTimestampProvider {
@@ -735,8 +742,8 @@ mod std_timestamp_provider {
     }
 
     impl MonotonicTimestampProvider for StdTimestampProvider {
-        fn get_timestamp(&mut self) -> TimestampMillis {
-            (Instant::now() - self.reference_time).as_millis() as TimestampMillis
+        fn get_timestamp_microseconds(&mut self) -> TimestampMicros {
+            (Instant::now() - self.reference_time).as_micros() as TimestampMicros
         }
     }
 }

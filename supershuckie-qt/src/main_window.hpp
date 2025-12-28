@@ -24,6 +24,7 @@ class AskForTextDialog;
 class SelectItemDialog;
 class ControlsSettingsWindow;
 class ReplayPlaybackControls;
+class NDSDateDialog;
 
 std::vector<std::string> wrap_array_std(SuperShuckieStringArrayRaw *array);
 
@@ -42,6 +43,7 @@ class MainWindow: public QMainWindow {
     friend SelectItemDialog;
     friend ControlsSettingsWindow;
     friend ReplayPlaybackControls;
+    friend NDSDateDialog;
     
 public:
     MainWindow();
@@ -96,6 +98,7 @@ private:
     QAction *auto_unpause_on_input;
     QAction *auto_pause_on_record;
     QAction *keyboard_replay_controls;
+    QAction *horizontal_nds;
 
     QAction *sgb_enabled;
     QMenu *game_boy_settings;
@@ -193,6 +196,8 @@ private slots:
     void do_change_playback_time(int frames);
     void do_toggle_replay_keyboard_controls();
     void do_toggle_sgb();
+    void do_open_nds_date_dialog() noexcept;
+    void do_toggle_horizontal_nds();
 };
 
 class NumberedAction: public QAction {

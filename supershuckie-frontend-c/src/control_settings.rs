@@ -27,13 +27,6 @@ pub extern "C" fn supershuckie_control_settings_control_is_button(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn supershuckie_control_settings_control_is_spoiler(
-    control: u32
-) -> bool {
-    Control::try_from(control).map(|i| i.is_spoiler()).unwrap_or(false)
-}
-
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn supershuckie_control_settings_clear_controls_for_device(
     settings: &mut SuperShuckieControlSettings,
 
