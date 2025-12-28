@@ -1,0 +1,3 @@
+[submodule "melonds-rs/melonDS"]
+	path = melonds-rs/melonDS
+	url = https://github.com/melonDS-emu/melonDS.git

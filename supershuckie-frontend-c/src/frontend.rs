@@ -699,3 +699,8 @@ pub extern "C" fn supershuckie_frontend_is_sgb_enabled(frontend: &SuperShuckieFr
 pub extern "C" fn supershuckie_frontend_set_sgb_enabled(frontend: &mut SuperShuckieFrontend, enabled: bool) {
     frontend.set_sgb_enabled(enabled);
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_set_touch(frontend: &mut SuperShuckieFrontend, enabled: bool, x: u8, y: u8) {
+    frontend.set_touch(enabled.then_some((x, y)))
+}

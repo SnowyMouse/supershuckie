@@ -482,6 +482,11 @@ const char *supershuckie_frontend_get_name_of_controller(
 enum SuperShuckieReplayState supershuckie_frontend_get_replay_state(const struct SuperShuckieFrontendRaw *frontend);
 
 /**
+ * Set the touch
+ */
+void supershuckie_frontend_set_touch(struct SuperShuckieFrontendRaw *frontend, bool enabled, uint8_t x, uint8_t y);
+
+/**
  * Free the core
  *
  * Safety:

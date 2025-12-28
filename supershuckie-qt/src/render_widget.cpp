@@ -19,6 +19,7 @@ void GameRenderWidget::set_dimensions(unsigned screen_count, const SuperShuckieS
         scale = 1;
     }
 
+    this->current_scale = scale;
     this->scale(scale, scale);
     this->setTransform(QTransform::fromScale(scale, scale));
 
@@ -159,4 +160,32 @@ void GameRenderWidget::dropEvent(QDropEvent *event) {
     if(path) {
         this->main_window->load_rom(*path);
     }
+}
+
+void GameRenderWidget::mousePressEvent(QMouseEvent *event) {
+    auto pos = event->position();
+    int x = pos.x() / this->current_scale;
+    int y = pos.y() / this->current_scale;
+
+    if(this->screens.size() == 2) {
+        auto &screen = this->screens[1];
+        x -= screen.x;
+
+        if(x < 0 || x > screen.width || y < 0 || y > screen.height) {
+            return;
+        }
+        supershuckie_frontend_set_touch(this->main_window->frontend, true, x, y);
+    }
+}
+
+void GameRenderWidget::mouseDoubleClickEvent(QMouseEvent *event) {
+    this->mousePressEvent(event);
+}
+
+void GameRenderWidget::mouseReleaseEvent(QMouseEvent *) {
+    supershuckie_frontend_set_touch(this->main_window->frontend, false, 0, 0);
+}
+
+void GameRenderWidget::mouseMoveEvent(QMouseEvent *event) {
+    this->mousePressEvent(event);
 }

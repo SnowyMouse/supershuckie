@@ -44,11 +44,6 @@ const char *supershuckie_control_settings_modifier_name(SuperShuckieControlModif
 bool supershuckie_control_settings_control_is_button(SuperShuckieControlType control);
 
 /**
- * Return true if the control type is a spoiler.
- */
-bool supershuckie_control_settings_control_is_spoiler(SuperShuckieControlType control);
-
-/**
  * Clear controls for a device.
  *
  * If device_name is null, the keyboard will be used.

@@ -2,10 +2,12 @@
 
 mod game_boy_color;
 mod null;
+mod nintendo_ds;
 
 use alloc::string::String;
 pub use game_boy_color::*;
 pub use null::*;
+pub use nintendo_ds::*;
 
 use alloc::vec::Vec;
 use std::num::NonZeroU64;
@@ -109,7 +111,7 @@ pub struct Input {
     pub x: bool,
     pub y: bool,
 
-    pub touch: Option<(u16, u16)>
+    pub touch: Option<(u8, u8)>
 }
 
 impl Default for Input {

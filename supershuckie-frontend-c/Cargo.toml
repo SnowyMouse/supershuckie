@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [lib]
-crate-type = ["cdylib", "staticlib"]
+crate-type = ["staticlib"]
 
 [dependencies]
 supershuckie-frontend = { workspace = true }

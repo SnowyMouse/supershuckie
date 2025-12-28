@@ -116,9 +116,9 @@ impl ReplaySettings {
     const MAX_RECORDING_BLOB_SIZE_MB: fn() -> NonZeroU32 = || unsafe { NonZeroU32::new_unchecked(
         (ReplayFileRecorderSettings::default().minimum_uncompressed_bytes_per_blob / 1024 / 1024) as u32
     ) };
-    const AUTO_DECOMPRESS_REPLAYS_UPFRONT: fn() -> bool = || true;
+    const AUTO_DECOMPRESS_REPLAYS_UPFRONT: fn() -> bool = || false;
     const DEFAULT_MAX_ZSTD_COMPRESSION_LEVEL: fn() -> i32 = || ReplayFileRecorderSettings::default().compression_level;
-    const DEFAULT_FRAMES_PER_KEYFRAME: fn() -> NonZeroU64 = || unsafe { NonZeroU64::new_unchecked(60) };
+    const DEFAULT_FRAMES_PER_KEYFRAME: fn() -> NonZeroU64 = || unsafe { NonZeroU64::new_unchecked(120) };
     const AUTO_STOP_PLAYBACK_ON_INPUT: fn() -> bool = || false;
     const AUTO_UNPAUSE_ON_INPUT: fn() -> bool = || false;
     const AUTO_PAUSE_ON_RECORD: fn() -> bool = || false;
@@ -333,17 +333,6 @@ impl Control {
             Control::Turbo => false,
             Control::Reset => false,
             Control::Pause => false
-        }
-    }
-
-    /// Return true if this button spoils something.
-    pub const fn is_spoiler(self) -> bool {
-        match self {
-            Control::L => true,
-            Control::R => true,
-            Control::X => true,
-            Control::Y => true,
-            _ => false
         }
     }
 

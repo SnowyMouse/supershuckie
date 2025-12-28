@@ -32,7 +32,7 @@ private:
         unsigned y = 0;
     };
 
-    unsigned total_width = 1, total_height = 1;
+    unsigned total_width = 1, total_height = 1, current_scale = 1;
 
     std::vector<ScreenData> screens;
     QGraphicsScene *scene = nullptr;
@@ -45,6 +45,11 @@ private:
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
+
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
 };
 
 }
