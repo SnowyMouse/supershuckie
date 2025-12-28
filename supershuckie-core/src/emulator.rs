@@ -270,6 +270,7 @@ impl Default for ScreenData {
 
 /// Describes the color encoding.
 #[derive(Copy, Clone, PartialEq, Debug)]
+#[repr(u32)]
 pub enum ScreenDataEncoding {
     /// 0xAARRGGBB
     A8R8G8B8

@@ -864,16 +864,14 @@ void MainWindow::do_play_replay() {
 void MainWindow::on_refresh_screens(void *user_data, std::size_t screen_count, const uint32_t *const *pixels) {
     auto *self = reinterpret_cast<MainWindow *>(user_data);
     
-    const uint32_t *first_screen = pixels[0];
     self->frames_in_last_second += 1;
-    self->render_widget->refresh_screen(first_screen);
+    self->render_widget->refresh_screen(screen_count, pixels);
 }
 
 void MainWindow::on_change_video_mode(void *user_data, std::size_t screen_count, const SuperShuckieScreenData *screen_data, std::uint8_t video_scale) {
     auto *self = reinterpret_cast<MainWindow *>(user_data);
     
-    const SuperShuckieScreenData &first_screen = screen_data[0];
-    self->render_widget->set_dimensions(first_screen.width, first_screen.height, video_scale);
+    self->render_widget->set_dimensions(screen_count, screen_data, video_scale);
     self->frames_in_last_second = 0;
     self->current_fps = 0.0;
     self->second_start = clock::now();

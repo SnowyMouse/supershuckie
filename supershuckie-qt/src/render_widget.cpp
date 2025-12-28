@@ -14,52 +14,48 @@ GameRenderWidget::GameRenderWidget(MainWindow *window, QWidget *parent): QGraphi
     this->setFocusPolicy(Qt::ClickFocus);
 }
 
-void GameRenderWidget::set_dimensions(unsigned width, unsigned height, unsigned scale) {
+void GameRenderWidget::set_dimensions(unsigned screen_count, const SuperShuckieScreenData *screen_data, unsigned scale) noexcept {
     if(scale == 0) {
         scale = 1;
     }
 
     this->scale(scale, scale);
-    this->width = width;
-    this->height = height;
     this->setTransform(QTransform::fromScale(scale, scale));
 
-    this->setFixedSize(this->width * scale, this->height * scale);
+    delete this->scene;
+    this->scene = nullptr;
 
-    this->rebuild_scene();
-}
+    this->screens.clear();
 
-void GameRenderWidget::rebuild_scene() {
-    if(this->scene == nullptr) {
-        delete this->scene;
-        this->scene = nullptr;
+    this->scene = new QGraphicsScene(this);
+
+    this->total_width = 0;
+    this->total_height = 0;
+
+    for(unsigned i = 0; i < screen_count; i++) {
+        ScreenData screen;
+        screen.width = screen_data[i].width;
+        screen.height = screen_data[i].height;
+        screen.pixmap_item = this->scene->addPixmap(screen.pixmap);
+
+        screen.x = this->total_width;
+        screen.pixmap_item->setOffset(screen.x, screen.y);
+        this->total_width += screen.width;
+        
+        this->total_height = this->total_height > screen.height ? this->total_height : screen.height;
+        this->screens.emplace_back(screen);
     }
-
-    this->pixmap = {};
-    auto *new_scene = new QGraphicsScene(this);
-    auto *new_pixmap = new_scene->addPixmap(this->pixmap);
-
-    if(this->scene != nullptr) {
-        delete this->pixmap_item;
-        auto items = this->scene->items();
-        for(auto &i : items) {
-            new_scene->addItem(i);
-        }
-        delete this->scene;
-    }
-
-    this->pixmap_item = new_pixmap;
-    this->scene = new_scene;
+    
+    this->setFixedSize(this->total_width * scale, this->total_height * scale);
     this->setScene(this->scene);
 }
 
-void GameRenderWidget::force_refresh_screen() {
-    supershuckie_frontend_force_refresh_screens(this->main_window->frontend);
-}
-
-void GameRenderWidget::refresh_screen(const uint32_t *pixels) {
-    this->pixmap.convertFromImage(QImage(reinterpret_cast<const uchar *>(pixels), this->width, this->height, QImage::Format::Format_ARGB32));
-    this->pixmap_item->setPixmap(this->pixmap);
+void GameRenderWidget::refresh_screen(unsigned screen_count, const uint32_t *const *pixels) {
+    for(unsigned i = 0; i < this->screens.size() && i < screen_count; i++) {
+        auto &screen = this->screens[i];
+        screen.pixmap.convertFromImage(QImage(reinterpret_cast<const uchar *>(pixels[i]), screen.width, screen.height, QImage::Format::Format_ARGB32));
+        screen.pixmap_item->setPixmap(screen.pixmap);
+    }
 }
 
 void GameRenderWidget::keyPressEvent(QKeyEvent *event) {

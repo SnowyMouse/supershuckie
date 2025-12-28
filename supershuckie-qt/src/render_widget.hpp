@@ -4,8 +4,10 @@
 #include <QWidget>
 #include <QGraphicsView>
 #include <QPixmap>
+#include <vector>
 
 class QGraphicsScene;
+struct SuperShuckieScreenData;
 
 namespace SuperShuckie64 {
 
@@ -15,23 +17,27 @@ class SuperShuckieGraphicsView;
 class GameRenderWidget: public QGraphicsView {
     friend MainWindow;
 public:
-    void set_dimensions(unsigned width, unsigned height, unsigned scale);
+    void set_dimensions(unsigned screen_count, const SuperShuckieScreenData *screen_data, unsigned scale) noexcept;
 
 private:
     GameRenderWidget(MainWindow *window, QWidget *parent);
     MainWindow *main_window;
 
-    unsigned nearest_scaling = 1;
-    unsigned width = 1;
-    unsigned height = 1;
+    struct ScreenData {
+        unsigned width;
+        unsigned height;
+        QPixmap pixmap;
+        QGraphicsPixmapItem *pixmap_item = nullptr;
+        unsigned x = 0;
+        unsigned y = 0;
+    };
 
-    QPixmap pixmap;
+    unsigned total_width = 1, total_height = 1;
+
+    std::vector<ScreenData> screens;
     QGraphicsScene *scene = nullptr;
-    QGraphicsPixmapItem *pixmap_item = nullptr;
 
-    void rebuild_scene();
-    void force_refresh_screen();
-    void refresh_screen(const uint32_t *pixels);
+    void refresh_screen(unsigned screen_count, const uint32_t *const *pixels);
 
     void keyPressEvent(QKeyEvent *event) override;
     void keyReleaseEvent(QKeyEvent *event) override;
