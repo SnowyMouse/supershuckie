@@ -280,6 +280,9 @@ pub enum PacketDiscriminator {
     /// Load the save state at the given keyframe
     LoadSaveState = 0xF4,
 
+    /// Describes a keyframe with a diff
+    DeltaKeyframe = 0xF5,
+
     /// Compressed blob
     CompressedBlob = 0xFE,
     
@@ -358,6 +361,7 @@ impl Packet {
             Packet::ChangeSpeed { .. } => PacketDiscriminator::ChangeSpeed as u8,
             Packet::Bookmark { .. } => PacketDiscriminator::Bookmark as u8,
             Packet::Keyframe { .. } => PacketDiscriminator::Keyframe as u8,
+            Packet::DeltaKeyframe { .. } => PacketDiscriminator::DeltaKeyframe as u8,
             Packet::CompressedBlob { .. } => PacketDiscriminator::CompressedBlob as u8,
         }
     }
@@ -422,6 +426,11 @@ impl PacketIO<'_> for Packet {
             Packet::Keyframe { state, metadata } => {
                 commands.extend(metadata.write_packet_instructions());
                 commands.extend(state.write_packet_instructions());
+            },
+
+            Packet::DeltaKeyframe { diff, metadata } => {
+                commands.extend(metadata.write_packet_instructions());
+                commands.extend(diff.write_packet_instructions());
             },
 
             Packet::Bookmark { metadata } => {
@@ -489,6 +498,7 @@ impl PacketIO<'_> for Packet {
             PacketDiscriminator::WriteMemory32 => write_memory!(u32),
             PacketDiscriminator::WriteMemoryVar => Ok(Packet::WriteMemory { address: UnsignedInteger::read_all(from)?, data: ByteVec::read_all(from)? }),
             PacketDiscriminator::Keyframe => Ok(Packet::Keyframe { metadata: KeyframeMetadata::read_all(from)?, state: ByteVec::read_all(from)? }),
+            PacketDiscriminator::DeltaKeyframe => Ok(Packet::DeltaKeyframe { metadata: KeyframeMetadata::read_all(from)?, diff: Vec::read_all(from)? }),
             PacketDiscriminator::Bookmark => Ok(Packet::Bookmark { metadata: BookmarkMetadata::read_all(from)? }),
             PacketDiscriminator::ChangeSpeed => Ok(Packet::ChangeSpeed { speed: Speed::read_all(from)? }),
             PacketDiscriminator::CompressedBlob => Ok(Packet::CompressedBlob {

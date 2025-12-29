@@ -27,6 +27,7 @@ use std::{
     io::{Seek, SeekFrom, Write},
     fs::File
 };
+use crate::util::fast_diff;
 
 /// Records a replay file
 ///
@@ -41,9 +42,13 @@ pub struct ReplayFileRecorder<Final: ReplayFileSink, Temp: ReplayFileSink> {
     current_blob_bookmarks: Vec<BookmarkMetadata>,
     current_blob_offset: u64,
 
+    // NOTE: Not exact. Used for determining when to make the next compressed blob.
+    current_blob_size_undiffed: usize,
+
     elapsed_frames: UnsignedInteger,
     elapsed_millis: TimestampMillis,
     last_keyframe_frames: UnsignedInteger,
+    last_state_to_diff: Option<ByteVec>,
 
     current_speed: Speed,
     current_input: InputBuffer,
@@ -61,7 +66,7 @@ struct SinkTuple<Final: ReplayFileSink, Temp: ReplayFileSink> {
 /// Settings for [`ReplayFileRecorder`]
 #[derive(Clone)]
 pub struct ReplayFileRecorderSettings {
-    /// Minimum uncompressed bytes per blob
+    /// Minimum uncompressed bytes per blob before creating a new blob
     ///
     /// Default is [`DEFAULT_MINIMUM_UNCOMPRESSED_BYTES_PER_BLOB`]
     pub minimum_uncompressed_bytes_per_blob: usize,
@@ -73,7 +78,7 @@ pub struct ReplayFileRecorderSettings {
 }
 
 /// Default minimum uncompressed bytes per blob
-pub const DEFAULT_MINIMUM_UNCOMPRESSED_BYTES_PER_BLOB: usize = 256 * 1024 * 1024;
+pub const DEFAULT_MINIMUM_UNCOMPRESSED_BYTES_PER_BLOB: usize = 1024 * 1024 * 1024;
 
 /// Default compression level
 ///
@@ -125,6 +130,8 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
             current_blob_bookmarks: Vec::new(),
             current_blob_offset: u64::try_from(current_blob_offset).expect("failed to read"),
             poisoned: false,
+            current_blob_size_undiffed: 0,
+            last_state_to_diff: None,
             sink: Some(SinkTuple {
                 final_sink, temp_sink
             })
@@ -210,8 +217,9 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
         self.elapsed_millis = elapsed_millis;
         self.last_keyframe_frames = self.elapsed_frames;
 
-        if self.current_blob.len() >= self.settings.minimum_uncompressed_bytes_per_blob {
+        if self.current_blob_size_undiffed >= self.settings.minimum_uncompressed_bytes_per_blob {
             self.next_blob()?;
+            self.last_state_to_diff = None;
         }
 
         let metadata = KeyframeMetadata {
@@ -223,10 +231,31 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
 
         self.current_blob_keyframes.push(metadata.clone());
 
-        self.write_packet_data(&Packet::Keyframe {
-            metadata,
-            state
-        })?;
+        let diff;
+        if let Some(s) = self.last_state_to_diff.take() {
+            diff = fast_diff(s.as_slice(), state.as_slice());
+        }
+        else {
+            diff = None;
+        }
+
+        self.last_state_to_diff = Some(state.clone());
+
+        if let Some(diff) = diff {
+            let size_before = self.current_blob_size_undiffed;
+            let estimated_size = state.len() + metadata.input.len() + 24;
+            self.write_packet_data(&Packet::DeltaKeyframe {
+                metadata,
+                diff
+            })?;
+            self.current_blob_size_undiffed = size_before + estimated_size;
+        }
+        else {
+            self.write_packet_data(&Packet::Keyframe {
+                metadata,
+                state
+            })?;
+        }
 
         Ok(self.elapsed_frames)
     }
@@ -269,6 +298,7 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
             temporary_sink.write_packet_data(&write_instructions)?;
 
             this.current_blob_offset = current_blob_offset_old.checked_add(written).expect("overflowed adding current_blob_offset");
+            this.current_blob_size_undiffed = 0;
 
             Ok(())
         })
@@ -313,7 +343,10 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
 
     fn write_packet_unchecked<'a, P: PacketIO<'a>>(&mut self, what: &'a P) -> Result<(), ReplayFileWriteError> {
         let instructions = what.write_packet_instructions();
+        let start = self.current_blob.len();
         self.current_blob.write_packet_data(&instructions)?;
+        let bytes_written = self.current_blob.len() - start;
+        self.current_blob_size_undiffed += bytes_written;
         self.sink.as_mut().expect("write_packet_data on None sink").temp_sink.write_packet_data(&instructions)?;
         Ok(())
     }

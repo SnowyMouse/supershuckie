@@ -59,6 +59,16 @@ pub enum Packet {
         state: ByteVec
     },
 
+    /// Adds a diffed keyframe so the replay can be scanned faster.
+    ///
+    /// The player will automatically convert these into regular keyframes using
+    /// (`apply_diff`)[`crate::util::apply_diff`].
+    #[allow(missing_docs)]
+    DeltaKeyframe {
+        metadata: KeyframeMetadata,
+        diff: Vec<UnsignedInteger>
+    },
+
     /// Describes a compressed blob of memory.
     #[allow(missing_docs)]
     CompressedBlob {

@@ -41,6 +41,9 @@ pub(crate) fn try_to_init_user_dir_and_get_settings(user_dir: &Path) -> Result<S
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Settings {
+    #[serde(default = "ReplaySettings::default")]
+    pub replay_settings: ReplaySettings,
+
     #[serde(default = "EmulationSettings::default")]
     pub emulation: EmulationSettings,
 
@@ -49,9 +52,6 @@ pub struct Settings {
 
     #[serde(default = "Controls::default")]
     pub controls: Controls,
-    
-    #[serde(default = "ReplaySettings::default")]
-    pub replay_settings: ReplaySettings,
 
     #[serde(default = "BTreeMap::default")]
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]

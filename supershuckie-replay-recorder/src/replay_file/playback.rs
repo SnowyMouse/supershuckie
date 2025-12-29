@@ -28,7 +28,7 @@ use alloc::sync::Arc;
 use alloc::collections::BTreeMap;
 use alloc::vec;
 use crate::replay_file::{ReplayFileMetadata, ReplayHeaderBytes, ReplayHeaderRaw};
-use crate::{BookmarkMetadata, KeyframeMetadata, Packet, PacketIO, PacketReadError, TimestampMillis, UnsignedInteger};
+use crate::{apply_diff, BookmarkMetadata, ByteVec, KeyframeMetadata, Packet, PacketIO, PacketReadError, TimestampMillis, UnsignedInteger};
 use crate::util::{decompress_data, launder_reference};
 
 type KeyframeMap<'a> = BTreeMap<UnsignedInteger, Vec<&'a KeyframeMetadata>>;
@@ -603,6 +603,36 @@ fn decompress_compressed_blob(blob_data: &[u8], uncompressed_size: usize) -> Res
         packets.push(
             Packet::read_all(&mut b).map_err(|i| ReplayFileReadError::BrokenPacket { explanation: Cow::Owned(format!("Failed to read packet - {i:?}")) })?
         )
+    }
+
+    let Some(Packet::Keyframe { state, .. }) = packets.get(0) else {
+        return Err(ReplayFileReadError::InvalidReplayFile { explanation: Cow::Borrowed("first packet in a blob was not a keyframe") });
+    };
+
+    let mut current_state = state.to_owned();
+    for i in &mut packets {
+        match i {
+            Packet::Keyframe { state, .. } => {
+                current_state.clear();
+                current_state.extend_from_slice(state.as_slice());
+            },
+
+            Packet::DeltaKeyframe { diff, metadata } => {
+                match apply_diff(current_state.as_slice(), diff.as_slice()) {
+                    Some(n) => current_state = ByteVec::Heap(n),
+                    None => return Err(ReplayFileReadError::InvalidReplayFile { explanation: Cow::Borrowed("de-diffing error") })
+                }
+
+                let new_keyframe = Packet::Keyframe {
+                    metadata: core::mem::take(metadata),
+                    state: current_state.clone()
+                };
+
+                *i = new_keyframe;
+            },
+
+            _ => {}
+        }
     }
 
     Ok(Arc::new(packets))

@@ -251,6 +251,7 @@ impl SuperShuckieCore {
                         },
                         Packet::Bookmark { .. } => {}
                         Packet::Keyframe { .. } => {}
+                        Packet::DeltaKeyframe { .. } => {},
                         Packet::CompressedBlob { .. } => unreachable!("compressed blob")
                     }
                 }

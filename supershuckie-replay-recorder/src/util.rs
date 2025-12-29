@@ -131,3 +131,73 @@ pub fn blake3_hash(data: &[u8]) -> ReplayHeaderBlake3Hash {
 pub(crate) unsafe fn launder_reference<T>(what: &T) -> &'static T {
     unsafe { transmute::<&T, &'static T>(what) }
 }
+
+/// Diff two buffers and return the result.
+///
+/// Return `None` if a diff cannot be made.
+#[must_use]
+pub fn fast_diff(a_buf: &[u8], b_buf: &[u8]) -> Option<Vec<u64>> {
+    // can't use this algorithm if the buffer is too large or bufs aren't the same size
+    if a_buf.len() != b_buf.len() || a_buf.len() > u32::MAX as usize {
+        return None
+    }
+
+    let (a_chunks, a_extra) = a_buf.as_chunks::<4>();
+    let (b_chunks, b_extra) = b_buf.as_chunks::<4>();
+
+    let mut diff = Vec::new();
+
+    let mut offset = 0usize;
+
+    for (a,b) in a_chunks.iter().copied().zip(b_chunks.iter().copied()) {
+        let this_offset = offset;
+        offset += a.len();
+
+        let a_int = u32::from_le_bytes(a);
+        let b_int = u32::from_le_bytes(b);
+
+        if a_int != b_int {
+            diff.push(((this_offset as u64) << 32) | (b_int as u64));
+
+            // if the diff is more than 25% the size of the original state, it's probably a bad idea
+            if diff.len() > a_buf.len() / 4 / 2 / 4 {
+                return None;
+            }
+        }
+    }
+
+    // last bit might not be 4 bytes
+    if !b_extra.is_empty() && a_extra != b_extra {
+        let b_int = u32::from_le_bytes([
+            b_extra[0],
+            b_extra.get(1).copied().unwrap_or_default(),
+            b_extra.get(2).copied().unwrap_or_default(),
+            0
+        ]);
+
+        diff.push(((offset as u64) << 32) | (b_int as u64));
+    }
+
+    Some(diff)
+}
+
+/// Apply a diff.
+///
+/// Return `None` if the diff is wrong.
+#[must_use]
+pub fn apply_diff(buff: &[u8], diff: &[u64]) -> Option<Vec<u8>> {
+    let max_size = (buff.len() + 3) / 4 * 4;
+    let mut output = Vec::with_capacity(max_size);
+    output.extend_from_slice(buff);
+    output.resize(max_size, 0);
+
+    for &d in diff {
+        let offset = (d >> 32) as usize;
+        let data = (d as u32).to_le_bytes();
+
+        output.get_mut(offset..offset+4)?.copy_from_slice(data.as_slice());
+    }
+
+    output.truncate(buff.len());
+    Some(output)
+}
