@@ -361,9 +361,8 @@ impl ThreadedSuperShuckieCoreThread {
                 std::thread::sleep(Duration::from_millis(100));
             }
             else {
-                // we can't really sleep for a definite amount of time because it'll make seeking
-                // choppy
-                std::thread::yield_now();
+                // sleep for a reduced time so seeking can still be responsive
+                std::thread::sleep(Duration::from_millis(10));
             }
         }
 
