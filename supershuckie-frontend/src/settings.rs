@@ -42,7 +42,7 @@ pub(crate) fn try_to_init_user_dir_and_get_settings(user_dir: &Path) -> Result<S
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Settings {
     #[serde(default = "ReplaySettings::default")]
-    pub replay_settings: ReplaySettings,
+    pub replay: ReplaySettings,
 
     #[serde(default = "EmulationSettings::default")]
     pub emulation: EmulationSettings,

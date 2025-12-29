@@ -233,7 +233,7 @@ impl SuperShuckieFrontend {
             }
         };
 
-        if self.settings.replay_settings.auto_decompress_replays_upfront {
+        if self.settings.replay.auto_decompress_replays_upfront {
             player.decompress_all_blobs();
         }
 
@@ -366,11 +366,11 @@ impl SuperShuckieFrontend {
         let pressed = value > 0.5;
 
         if control.control.is_button() {
-            if pressed && self.settings.replay_settings.auto_stop_playback_on_input && self.get_replay_playback_stats().is_some() {
+            if pressed && self.settings.replay.auto_stop_playback_on_input && self.get_replay_playback_stats().is_some() {
                 self.stop_replay_playback();
             }
 
-            if pressed && self.settings.replay_settings.auto_unpause_on_input && self.is_paused() {
+            if pressed && self.settings.replay.auto_unpause_on_input && self.is_paused() {
                 self.set_paused(false);
             }
 
@@ -775,42 +775,42 @@ impl SuperShuckieFrontend {
 
     #[inline]
     pub fn set_auto_stop_playback_on_input_setting(&mut self, new_setting: bool) {
-        self.settings.replay_settings.auto_stop_playback_on_input = new_setting
+        self.settings.replay.auto_stop_playback_on_input = new_setting
     }
 
     #[inline]
     pub fn get_auto_stop_playback_on_input_setting(&self) -> bool {
-        self.settings.replay_settings.auto_stop_playback_on_input
+        self.settings.replay.auto_stop_playback_on_input
     }
 
     #[inline]
     pub fn set_auto_unpause_on_input_setting(&mut self, new_setting: bool) {
-        self.settings.replay_settings.auto_unpause_on_input = new_setting
+        self.settings.replay.auto_unpause_on_input = new_setting
     }
 
     #[inline]
     pub fn get_auto_unpause_on_input_setting(&self) -> bool {
-        self.settings.replay_settings.auto_unpause_on_input
+        self.settings.replay.auto_unpause_on_input
     }
 
     #[inline]
     pub fn set_auto_pause_on_record_setting(&mut self, new_setting: bool) {
-        self.settings.replay_settings.auto_pause_on_record = new_setting
+        self.settings.replay.auto_pause_on_record = new_setting
     }
 
     #[inline]
     pub fn get_auto_pause_on_record_setting(&self) -> bool {
-        self.settings.replay_settings.auto_pause_on_record
+        self.settings.replay.auto_pause_on_record
     }
 
     #[inline]
     pub fn set_auto_decompress_replays_upfront_setting(&mut self, new_setting: bool) {
-        self.settings.replay_settings.auto_decompress_replays_upfront = new_setting;
+        self.settings.replay.auto_decompress_replays_upfront = new_setting;
     }
 
     #[inline]
     pub fn get_auto_decompress_replays_upfront_setting(&self) -> bool {
-        self.settings.replay_settings.auto_decompress_replays_upfront
+        self.settings.replay.auto_decompress_replays_upfront
     }
 
     /// Get the number of milliseconds elapsed.
@@ -865,7 +865,7 @@ impl SuperShuckieFrontend {
         let (final_file, final_replay, final_replay_path) = self.load_file_or_make_generic(&save_states_dir, name, None, REPLAY_EXTENSION)?;
         let (temp_file, _, temp_replay) = self.load_file_or_make_generic(&save_states_dir, name, Some("temp"), REPLAY_EXTENSION)?;
 
-        if self.settings.replay_settings.auto_pause_on_record {
+        if self.settings.replay.auto_pause_on_record {
             self.set_paused(true);
         }
 
@@ -874,10 +874,10 @@ impl SuperShuckieFrontend {
             rom_filename: current_rom_name.to_string(),
 
             settings: ReplayFileRecorderSettings {
-                minimum_uncompressed_bytes_per_blob: (self.settings.replay_settings.max_recording_blob_size_mb.get() as usize)
+                minimum_uncompressed_bytes_per_blob: (self.settings.replay.max_recording_blob_size_mb.get() as usize)
                     .saturating_mul(1024)
                     .saturating_mul(1024),
-                compression_level: self.settings.replay_settings.zstd_compression_level
+                compression_level: self.settings.replay.zstd_compression_level
             },
 
             // TODO: patches
@@ -885,7 +885,7 @@ impl SuperShuckieFrontend {
             patch_target_checksum: ReplayHeaderBlake3Hash::default(),
             patch_data: ByteVec::default(),
 
-            frames_per_keyframe: self.settings.replay_settings.frames_per_keyframe,
+            frames_per_keyframe: self.settings.replay.frames_per_keyframe,
 
             final_file,
             temp_file,
