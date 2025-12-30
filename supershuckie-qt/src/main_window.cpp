@@ -154,15 +154,21 @@ MainWindow::MainWindow(): QMainWindow() {
     callbacks.refresh_screens = MainWindow::on_refresh_screens;
     callbacks.change_video_mode = MainWindow::on_change_video_mode;
 
-    #ifdef __APPLE__
-    this->app_dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(app_dir);
-    #else
+    QString config_path;
+
+    #ifdef _WIN32
     this->app_dir = QString("./UserData");
+    config_path = this->app_dir;
+    #else
+    this->app_dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    config_path = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(this->app_dir);
+    QDir().mkpath(config_path);
     #endif
 
     this->frontend = supershuckie_frontend_new(
         this->app_dir.toStdString().c_str(),
+        config_path.toStdString().c_str(),
         &callbacks
     );
 

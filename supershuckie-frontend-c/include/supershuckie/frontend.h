@@ -47,10 +47,11 @@ struct SuperShuckieFrontendCallbacks {
  * Initialize a new frontend.
  *
  * Safety:
- * - Both pointers must point to valid data.
+ * - All pointers must point to valid data.
  */
 struct SuperShuckieFrontendRaw *supershuckie_frontend_new(
-    const char *user_data_path,
+    const char *data_dir_path,
+    const char *config_dir_path,
     const struct SuperShuckieFrontendCallbacks *callbacks
 );
 

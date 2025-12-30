@@ -57,14 +57,18 @@ impl SuperShuckieFrontendCallbacks for SuperShuckieFrontendCallbacksC {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn supershuckie_frontend_new(
-    user_dir: *const c_char,
+    data_dir: *const c_char,
+    config_dir: *const c_char,
     callbacks: &SuperShuckieFrontendCallbacksC
 ) -> *mut SuperShuckieFrontend {
-    let user_dir = unsafe { CStr::from_ptr(user_dir) }
+    let data_dir = unsafe { CStr::from_ptr(data_dir) }
         .to_str()
-        .expect("path is not UTF-8");
+        .expect("data_dir is not UTF-8");
+    let config_file = unsafe { CStr::from_ptr(config_dir) }
+        .to_str()
+        .expect("config_file is not UTF-8");
 
-    Box::into_raw(Box::new(SuperShuckieFrontend::new(user_dir, Box::new(*callbacks))))
+    Box::into_raw(Box::new(SuperShuckieFrontend::new(data_dir, config_file, Box::new(*callbacks))))
 }
 
 #[unsafe(no_mangle)]
@@ -446,7 +450,7 @@ pub unsafe extern "C" fn supershuckie_frontend_get_rom_name(
 pub unsafe extern "C" fn supershuckie_frontend_write_settings(
     frontend: &SuperShuckieFrontend
 ) {
-    frontend.write_settings();
+    frontend.write_config();
 }
 
 #[unsafe(no_mangle)]

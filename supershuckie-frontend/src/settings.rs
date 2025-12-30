@@ -13,29 +13,32 @@ use supershuckie_replay_recorder::replay_file::record::ReplayFileRecorderSetting
 use crate::SETTINGS_FILE;
 use crate::util::UTF8CString;
 
-pub(crate) fn try_to_init_user_dir_and_get_settings(user_dir: &Path) -> Result<Settings, String> {
-    if !user_dir.exists() {
-        fs::create_dir(&user_dir).map_err(|e| format!("Failed to create the user_dir: {e}"))?;
+pub(crate) fn try_to_init_data_dir_and_get_settings(data_dir: &Path, config_dir: &Path) -> Result<Settings, String> {
+    if !data_dir.exists() {
+        fs::create_dir(&data_dir).map_err(|e| format!("Failed to create the data_dir: {e}"))?;
+    }
+    if !config_dir.exists() {
+        fs::create_dir(&config_dir).map_err(|e| format!("Failed to create the config_dir: {e}"))?;
     }
 
-    let settings_toml = user_dir.join(SETTINGS_FILE);
+    let settings_json = config_dir.join(SETTINGS_FILE);
     let mut settings_file = File::options()
         .write(true)
         .read(true)
         .create(true)
-        .open(settings_toml)
-        .map_err(|e| format!("Failed to open the settings file for write access: {e}"))?;
+        .open(settings_json)
+        .map_err(|e| format!("Failed to open the config file for write access: {e}"))?;
 
-    settings_file.seek(SeekFrom::Start(0)).map_err(|e| format!("Failed to seek the settings file: {e}"))?;
+    settings_file.seek(SeekFrom::Start(0)).map_err(|e| format!("Failed to seek the config file: {e}"))?;
 
     let mut settings_str = String::new();
-    settings_file.read_to_string(&mut settings_str).map_err(|e| format!("Failed to read the settings file: {e}"))?;
+    settings_file.read_to_string(&mut settings_str).map_err(|e| format!("Failed to read the config file: {e}"))?;
 
     if settings_str.trim().is_empty() {
         settings_str = "{}".to_owned();
     }
 
-    let settings: Settings = serde_json::from_str::<Settings>(&settings_str).map_err(|e| format!("Failed to parse the settings file: {e}"))?;
+    let settings: Settings = serde_json::from_str::<Settings>(&settings_str).map_err(|e| format!("Failed to parse the config file: {e}"))?;
     Ok(settings)
 }
 

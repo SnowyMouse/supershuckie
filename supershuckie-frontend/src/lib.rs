@@ -44,6 +44,7 @@ pub struct SuperShuckieFrontend {
     callbacks: Box<dyn SuperShuckieFrontendCallbacks>,
 
     user_dir: PathBuf,
+    config_dir: PathBuf,
     frame_count: u32,
     pokeabyte_error: Option<UTF8CString>,
 
@@ -67,16 +68,19 @@ pub struct SuperShuckieFrontend {
 }
 
 impl SuperShuckieFrontend {
-    pub fn new<P: AsRef<Path>>(user_dir: P, callbacks: Box<dyn SuperShuckieFrontendCallbacks>) -> Self {
-        let user_dir = user_dir.as_ref().to_owned();
+    pub fn new<DATA: AsRef<Path>, CONF: AsRef<Path>>(data: DATA, config_dir: CONF, callbacks: Box<dyn SuperShuckieFrontendCallbacks>) -> Self {
+        let data_dir = data.as_ref().to_owned();
 
         // FIXME: Check this
-        let settings = try_to_init_user_dir_and_get_settings(user_dir.as_ref()).expect("failed to init user_dir");
+        let settings = try_to_init_data_dir_and_get_settings(
+            data_dir.as_ref(),
+            config_dir.as_ref(),
+        ).expect("failed to init user_dir");
 
         let mut s = Self {
             core: ThreadedSuperShuckieCore::new(Box::new(NullEmulatorCore)),
             core_metadata: CoreMetadata { emulator_type: None },
-            user_dir,
+            user_dir: data_dir,
             rom_name: None,
             save_file: None,
             loaded_rom_data: None,
@@ -91,6 +95,7 @@ impl SuperShuckieFrontend {
             recording_replay_file: None,
             pokeabyte_error: None,
             paused: false,
+            config_dir: config_dir.as_ref().to_owned(),
             connected_controllers: BTreeMap::new()
         };
 
@@ -838,9 +843,12 @@ impl SuperShuckieFrontend {
 
     /// Save the settings to disk.
     #[inline]
-    pub fn write_settings(&self) {
+    pub fn write_config(&self) {
         // TODO: handle errors here?
-        let _ = std::fs::write(self.user_dir.join(SETTINGS_FILE), serde_json::to_string_pretty(&self.settings).expect("failed to serialize"));
+        let _ = std::fs::write(
+            &self.config_dir.join(SETTINGS_FILE),
+            serde_json::to_string_pretty(&self.settings).expect("failed to serialize")
+        );
     }
 
     fn before_unload_or_reload_rom(&mut self) {
