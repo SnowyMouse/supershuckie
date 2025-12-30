@@ -46,6 +46,16 @@ target_link_libraries(supershuckie-cpp-static
     PUBLIC supershuckie_frontend_c
 )
 
+if(SCRIPT_BUILD)
+    find_library(MELONDS_CORE NAMES core PATHS ${CMAKE_BINARY_DIR}/melonDS/src/)
+    find_library(MELONDS_TEAKRA NAMES teakra PATHS ${CMAKE_BINARY_DIR}/melonDS/src/teakra/src)
+    target_link_libraries(supershuckie-cpp-static
+        PUBLIC ${MELONDS_CORE}
+        PUBLIC ${MELONDS_TEAKRA}
+    )
+endif()
+
+
 if(${WIN32})
     target_link_libraries(supershuckie-cpp-static PUBLIC dwmapi)
 endif()
@@ -74,7 +84,8 @@ elseif(${WIN32})
         src/windows.rc
     )
 else()
-    set_target_properties(supershuckie-debug
+    add_executable(supershuckie)
+    set_target_properties(supershuckie-debug PROPERTIES
         OUTPUT_NAME "supershuckie"
     )
 endif()
