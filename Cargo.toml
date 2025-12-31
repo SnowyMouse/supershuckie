@@ -2,11 +2,22 @@
 members = [
     "supershuckie-core",
     "supershuckie-pokeabyte-integration",
+    "supershuckie-pokeabyte-integration/supershuckie-pokeabyte-integration-test",
     "supershuckie-replay-recorder",
     "supershuckie-frontend",
     "supershuckie-frontend-c",
     "melonds-rs"
 ]
+
+default-members = [
+    "supershuckie-core",
+    "supershuckie-pokeabyte-integration",
+    "supershuckie-replay-recorder",
+    "supershuckie-frontend",
+    "supershuckie-frontend-c",
+    "melonds-rs"
+]
+
 resolver = "3"
 
 [workspace.package]

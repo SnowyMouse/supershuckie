@@ -376,6 +376,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "supershuckie-pokeabyte-integration-test"
+version = "0.2.0"
+dependencies = [
+ "supershuckie-pokeabyte-integration",
+]
+
+[[package]]
 name = "supershuckie-replay-recorder"
 version = "0.2.0"
 dependencies = [
