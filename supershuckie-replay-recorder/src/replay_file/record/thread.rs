@@ -5,6 +5,7 @@ use alloc::string::String;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Mutex;
 use std::sync::{Arc, Weak};
+use alloc::vec::Vec;
 
 type RecorderMutex<Final, Temp> = Mutex<ReplayFileRecorder<Final, Temp>>;
 
@@ -121,11 +122,18 @@ impl<Final: ReplayFileSink + Send + 'static, Temp: ReplayFileSink + Send + 'stat
     }
 
     /// Check for errors, if any.
-    pub fn poll_errors(&mut self) -> Option<ReplayFileWriteError> {
-        self.receiver.recv().ok().map(|i| match i {
-            ThreadedReplayFileRecorderResponse::Error { error } => error,
-            ThreadedReplayFileRecorderResponse::Closed => ReplayFileWriteError::StreamClosed
-        })
+    pub fn poll_errors(&mut self) -> Vec<ReplayFileWriteError> {
+        let mut errors = Vec::new();
+        
+        while let Ok(i) = self.receiver.try_recv() {
+            let error = match i {
+                ThreadedReplayFileRecorderResponse::Error { error } => error,
+                ThreadedReplayFileRecorderResponse::Closed => ReplayFileWriteError::StreamClosed
+            };
+            errors.push(error);
+        }
+        
+        errors
     }
 }
 
@@ -270,6 +278,11 @@ impl<Final: ReplayFileSink + Sync + Send + 'static, Temp: ReplayFileSink + Sync 
     fn load_save_state(&mut self, state: ByteVec) -> Result<(), ReplayFileWriteError> {
         self.load_save_state(state);
         Ok(())
+    }
+
+    #[inline]
+    fn get_errors(&mut self) -> Vec<ReplayFileWriteError> {
+        self.poll_errors()
     }
 }
 

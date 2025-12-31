@@ -8,6 +8,7 @@ use alloc::string::String;
 use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use alloc::format;
+use core::fmt::{Display, Formatter};
 use zstd_sys::ZSTD_defaultCLevel;
 
 #[cfg(not(feature = "std"))]
@@ -472,6 +473,17 @@ pub enum ReplayFileWriteError {
     Other { explanation: Cow<'static, str> }
 }
 
+impl Display for ReplayFileWriteError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ReplayFileWriteError::BadInput { explanation } => f.write_fmt(format_args!("Bad input: {explanation}")),
+            ReplayFileWriteError::StreamClosed => f.write_str("The stream has closed"),
+            ReplayFileWriteError::Poisoned => f.write_str("Failed to write due to being in an error state"),
+            ReplayFileWriteError::Other { explanation } => f.write_str(explanation)
+        }
+    }
+}
+
 /// A null sink
 ///
 /// Useful if you do not want a temporary buffer, for example
@@ -509,6 +521,7 @@ pub trait ReplayFileRecorderFns: core::any::Any + 'static + Send {
     fn write_memory(&mut self, address: UnsignedInteger, data: ByteVec) -> Result<(), ReplayFileWriteError>;
     fn set_speed(&mut self, speed: Speed) -> Result<(), ReplayFileWriteError>;
     fn load_save_state(&mut self, state: ByteVec) -> Result<(), ReplayFileWriteError>;
+    fn get_errors(&mut self) -> Vec<ReplayFileWriteError>;
 }
 
 impl<Final: ReplayFileSink + 'static + Send, Temp: ReplayFileSink + 'static + Send> ReplayFileRecorderFns for ReplayFileRecorder<Final, Temp> {
@@ -562,6 +575,12 @@ impl<Final: ReplayFileSink + 'static + Send, Temp: ReplayFileSink + 'static + Se
     #[inline]
     fn load_save_state(&mut self, state: ByteVec) -> Result<(), ReplayFileWriteError> {
         self.load_save_state(state)
+    }
+
+    #[inline]
+    fn get_errors(&mut self) -> Vec<ReplayFileWriteError> {
+        // TODO
+        Vec::new()
     }
 }
 

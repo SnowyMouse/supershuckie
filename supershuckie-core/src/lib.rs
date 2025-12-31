@@ -33,6 +33,7 @@ pub use thread::*;
 pub struct SuperShuckieCore {
     core: Box<dyn EmulatorCore>,
     replay_file_recorder: Option<Box<dyn ReplayFileRecorderFns>>,
+
     timestamp_provider: Box<dyn MonotonicTimestampProvider>,
 
     replay_player: Option<ReplayFilePlayer>,
@@ -289,9 +290,7 @@ impl SuperShuckieCore {
 
         for write in writes.drain(..) {
             let _ = self.core.write_ram(write.address, write.data.as_slice());
-            self.with_recorder(|recorder| {
-                let _ = recorder.write_memory(write.address as UnsignedInteger, write.data);
-            });
+            self.with_recorder(|recorder| recorder.write_memory(write.address as UnsignedInteger, write.data));
         }
 
         // reuse the allocation
@@ -450,12 +449,14 @@ impl SuperShuckieCore {
         None
     }
 
-    fn with_recorder<T, F: FnOnce(&mut dyn ReplayFileRecorderFns) -> T>(&mut self, what: F) -> Option<T> {
+    /// Forcibly stop recording the current replay.
+    pub fn force_stop_recording_replay(&mut self) {
+        self.replay_file_recorder = None;
+    }
+
+    fn with_recorder<F: FnOnce(&mut dyn ReplayFileRecorderFns) -> Result<(), ReplayFileWriteError>>(&mut self, what: F) {
         if let Some(n) = self.replay_file_recorder.as_mut() {
-            Some(what(Box::as_mut(n)))
-        }
-        else {
-            None
+            let _ = what(Box::as_mut(n));
         }
     }
 
@@ -490,9 +491,7 @@ impl SuperShuckieCore {
         if self.replay_file_recorder.is_some() {
             let mut data = ByteVec::with_capacity(self.input_scratch_buffer.len());
             data.extend_from_slice(self.input_scratch_buffer.as_slice());
-            self.with_recorder(|f| {
-                let _ = f.set_input(data);
-            });
+            self.with_recorder(|f| f.set_input(data));
         }
     }
 
@@ -509,12 +508,7 @@ impl SuperShuckieCore {
             let ms = self.timestamp_provider.get_timestamp_milliseconds() - self.starting_milliseconds;
             self.total_milliseconds = ms;
 
-            self.with_recorder(|f| {
-                // Add frames...
-                for _ in 0..time.frames {
-                    let _ = f.next_frame(ms);
-                }
-            });
+            self.with_recorder(|f| f.next_frame(ms));
         }
 
     }
@@ -527,9 +521,7 @@ impl SuperShuckieCore {
         self.frames_since_last_keyframe = 0;
         let ms = self.total_milliseconds;
         let save_state = ByteVec::Heap(self.core.create_save_state());
-        self.with_recorder(|f| {
-            let _ = f.insert_keyframe(save_state, ms);
-        });
+        self.with_recorder(|f| f.insert_keyframe(save_state, ms));
     }
 
     /// Attach a replay file player to the core.
@@ -639,6 +631,16 @@ impl SuperShuckieCore {
         while self.total_frames <= desired && !self.replay_stalled {
             self.run_unlocked();
         }
+    }
+
+    /// Get any errors for the replay writes.
+    ///
+    /// This should be called to ensure that it is still recording a replay.
+    pub fn poll_replay_recording_errors(&mut self) -> Vec<ReplayFileWriteError> {
+        self.replay_file_recorder
+            .as_mut()
+            .map(|r| r.get_errors())
+            .unwrap_or(Vec::new())
     }
 }
 

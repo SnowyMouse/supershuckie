@@ -406,8 +406,13 @@ void supershuckie_frontend_hard_reset_console(struct SuperShuckieFrontendRaw *fr
 
 /**
  * Should be called regularly.
+ *
+ * Returns false if an error occurred, with the error written to `error`.
+ *
+ * Safety:
+ * - error must point to a buffer of at least `error_len` bytes
  */
-void supershuckie_frontend_tick(struct SuperShuckieFrontendRaw *frontend);
+bool supershuckie_frontend_tick(struct SuperShuckieFrontendRaw *frontend, char *error, size_t error_len);
 
 /**
  * Get all replays for the given rom, or the currently loaded ROM if no ROM passed in.

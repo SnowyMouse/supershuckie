@@ -783,8 +783,38 @@ impl SuperShuckieFrontend {
     }
 
     /// Handle any logic that needs to be done regularly.
-    pub fn tick(&mut self) {
+    ///
+    /// Returns any errors that may occur
+    pub fn tick(&mut self) -> Result<(), UTF8CString> {
+        let mut errors = String::new();
+
         self.refresh_screen(false);
+
+        let replay_errors = self.core.get_replay_recording_errors();
+        if !replay_errors.is_empty() {
+            let len_after_three = replay_errors.len().saturating_sub(3);
+
+            for i in replay_errors.iter().take(3) {
+                errors += &format!("- REPLAY ERROR: {i}\n");
+            }
+
+            if len_after_three > 0 {
+                errors += &format!("...and {len_after_three} more replay error(s)\n");
+            }
+            self.core.stop_recording_replay();
+
+            if let Some(r) = self.recording_replay_file.take() {
+                errors += &format!("\n\nYour recording was stopped. The temp file ({}) was not deleted.", r.temp_replay_path.file_name().expect("no temp file filename???").display());
+            }
+        }
+
+
+        if errors.is_empty() {
+            Ok(())
+        }
+        else {
+            Err(errors.trim().into())
+        }
     }
 
     fn refresh_screen(&mut self, force: bool) {

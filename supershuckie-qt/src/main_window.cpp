@@ -322,12 +322,15 @@ void MainWindow::tick() {
         this->temporarily_paused = false;
     }
 
-    char buf[256];
+    char buf[1024];
     if(!supershuckie_frontend_is_pokeabyte_enabled(this->frontend, buf, sizeof(buf)) && buf[0] != 0) {
         this->set_title("Poke-A-Byte integration server error!");
     }
 
-    supershuckie_frontend_tick(this->frontend);
+    if(!supershuckie_frontend_tick(this->frontend, buf, sizeof(buf))) {
+        DISPLAY_ERROR_DIALOG("Error!", "%s", buf);
+    }
+
     this->pause->setChecked(supershuckie_frontend_is_paused(this->frontend));
 
     if(supershuckie_frontend_is_paused(this->frontend)) {

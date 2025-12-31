@@ -110,9 +110,17 @@ pub unsafe extern "C" fn supershuckie_frontend_set_paused(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn supershuckie_frontend_tick(
-    frontend: &mut SuperShuckieFrontend
-) {
-    frontend.tick();
+    frontend: &mut SuperShuckieFrontend,
+    error: *mut u8,
+    error_len: usize
+) -> bool {
+    if let Err(e) = frontend.tick() {
+        write_str_to_data(e.as_str(), unsafe { from_raw_parts_mut(error, error_len) });
+        false
+    }
+    else {
+        true
+    }
 }
 
 #[unsafe(no_mangle)]

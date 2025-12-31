@@ -11,9 +11,11 @@ use std::sync::{Arc, Mutex, TryLockError, Weak};
 use std::time::Duration;
 use std::vec::Vec;
 use std::format;
+
 #[cfg(feature = "pokeabyte")]
 use supershuckie_pokeabyte_integration::PokeAByteIntegrationServer;
 use supershuckie_replay_recorder::replay_file::playback::ReplayFilePlayer;
+use supershuckie_replay_recorder::replay_file::record::ReplayFileWriteError;
 use supershuckie_replay_recorder::UnsignedInteger;
 
 /// A (mostly) non-blocking, threaded wrapper for [`SuperShuckieCore`].
@@ -30,6 +32,7 @@ pub struct ThreadedSuperShuckieCore {
     playback: bool,
     playback_total_frames: UnsignedInteger,
     playback_total_milliseconds: UnsignedInteger,
+    replay_errors: Arc<Mutex<Vec<ReplayFileWriteError>>>
 }
 
 impl ThreadedSuperShuckieCore {
@@ -45,6 +48,7 @@ impl ThreadedSuperShuckieCore {
         let playback_total_milliseconds = 0;
         let desired_replay_frame = Arc::new(AtomicU32::new(u32::MAX));
         let delta_replay_frames = Arc::new(AtomicI32::new(0));
+        let replay_errors = Arc::new(Mutex::new(Vec::new()));
 
         {
             let frame_count = frame_count.clone();
@@ -52,6 +56,7 @@ impl ThreadedSuperShuckieCore {
             let replay_milliseconds = replay_milliseconds.clone();
             let desired_replay_frame = desired_replay_frame.clone();
             let delta_replay_frames = delta_replay_frames.clone();
+            let replay_errors = replay_errors.clone();
             let _ = std::thread::Builder::new().name("ThreadedSuperShuckieCore".to_owned()).spawn(move || {
                 ThreadedSuperShuckieCoreThread {
                     screens,
@@ -66,7 +71,8 @@ impl ThreadedSuperShuckieCore {
                     frame_count,
                     replay_milliseconds,
                     delta_replay_frames,
-                    playback_frozen: false
+                    replay_errors,
+                    playback_frozen: false,
                 }.run_thread();
             });
         }
@@ -79,6 +85,7 @@ impl ThreadedSuperShuckieCore {
             elapsed_milliseconds: replay_milliseconds,
             playback_total_frames,
             playback_total_milliseconds,
+            replay_errors,
             playback: false,
             desired_replay_frame,
             delta_replay_frames
@@ -277,6 +284,12 @@ impl ThreadedSuperShuckieCore {
         // similarly use AtomicI32 to avoid clogging the queue
         self.delta_replay_frames.store(amount, Ordering::Relaxed);
     }
+
+    /// Get any replay recording errors.
+    pub fn get_replay_recording_errors(&mut self) -> Vec<ReplayFileWriteError> {
+        self.replay_errors.clear_poison();
+        core::mem::take(&mut *self.replay_errors.lock().expect("get_replay_recording_errors fainted due to poison"))
+    }
 }
 
 impl Drop for ThreadedSuperShuckieCore {
@@ -323,6 +336,7 @@ struct ThreadedSuperShuckieCoreThread {
     replay_milliseconds: Arc<AtomicU32>,
     desired_replay_frame: Arc<AtomicU32>,
     delta_replay_frames: Arc<AtomicI32>,
+    replay_errors: Arc<Mutex<Vec<ReplayFileWriteError>>>,
     playback_frozen: bool,
 
     core: SuperShuckieCore,
@@ -344,6 +358,7 @@ impl ThreadedSuperShuckieCoreThread {
                 continue
             }
 
+            self.handle_replay_recording_errors();
             self.go_to_desired_frame();
             self.refresh_screen_data();
             self.update_queued_screens();
@@ -443,6 +458,16 @@ impl ThreadedSuperShuckieCoreThread {
         self.core.core.swap_screen_data(out_screens_result.as_mut_slice());
     }
 
+    fn handle_replay_recording_errors(&mut self) {
+        let errors = self.core.poll_replay_recording_errors();
+        if errors.is_empty() {
+            return;
+        }
+
+        self.core.force_stop_recording_replay();
+        self.replay_errors.lock().expect("could not get replay errors mutex").extend(errors.into_iter());
+    }
+
     fn force_refresh_screen_data(&mut self) {
         let Some(screen_data) = self.screens.upgrade() else {
             panic!("force_refresh_screen_data Can't get screen_data: owning thread must have crashed");
@@ -529,6 +554,8 @@ impl ThreadedSuperShuckieCoreThread {
                 }
             }
             ThreadCommand::StartRecordingReplay(metadata) => {
+                self.replay_errors.lock().expect("start recording replay failed to get replay errors").clear();
+
                 // FIXME: error if this fails
                 self.core.start_recording_replay(metadata).expect("FAILED TO START RECORDING REPLAY OH NO");
                 if !self.is_running {
