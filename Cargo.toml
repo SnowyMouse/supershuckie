@@ -13,6 +13,7 @@ resolver = "3"
 version = "0.2.0"
 edition = "2024"
 license = "GPL-3.0-only"
+rust-version = "1.89.0"
 
 [workspace.dependencies]
 # Keep up-to-date
