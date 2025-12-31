@@ -239,6 +239,8 @@ impl SuperShuckieFrontend {
             }
         };
 
+        self.set_paused(true);
+
         if self.settings.replay.auto_decompress_replays_upfront {
             player.decompress_all_blobs();
         }
