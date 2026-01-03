@@ -159,6 +159,7 @@ impl ReplayFilePlayer {
                     bookmarks,
                     uncompressed_size,
                     timestamp_end,
+                    elapsed_frames_end,
                     ..
                 } => {
                     // Vec works with up to isize maximum elements
@@ -173,6 +174,8 @@ impl ReplayFilePlayer {
                     if keyframes.is_empty() {
                         return Err(ReplayFileReadError::InvalidReplayFile { explanation: Cow::Borrowed("Replay has a compressed blob with no keyframes") })
                     }
+
+                    #[allow(unused)]
                     for i in keyframes {
                         add_keyframe!(i)
                     }
@@ -180,6 +183,7 @@ impl ReplayFilePlayer {
                         add_bookmark!(i)
                     }
 
+                    total_frame_count = *elapsed_frames_end;
                     total_millis = *timestamp_end;
                 },
                 Packet::Keyframe { metadata, .. } => {
