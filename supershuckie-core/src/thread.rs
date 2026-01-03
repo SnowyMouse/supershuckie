@@ -138,7 +138,7 @@ impl ThreadedSuperShuckieCore {
     }
 
     /// Stop recording replay.
-    pub fn start_recording_replay(&self, metadata: PartialReplayRecordMetadata<File, File>) {
+    pub fn start_recording_replay(&self, metadata: PartialReplayRecordMetadata<std::io::BufWriter<File>, std::io::BufWriter<File>>) {
         self.sender.send(ThreadCommand::StartRecordingReplay(metadata))
             .expect("StopRecordingReplay - the core thread has crashed");
     }
@@ -308,7 +308,7 @@ enum ThreadCommand {
     Pause,
     SetPlaybackFrozen(bool),
     SetPokeAByteEnabled(bool, Sender<Result<(), String>>),
-    StartRecordingReplay(PartialReplayRecordMetadata<File, File>),
+    StartRecordingReplay(PartialReplayRecordMetadata<std::io::BufWriter<File>, std::io::BufWriter<File>>),
     StopRecordingReplay(Sender<bool>),
     AttachReplayPlayer {
         player: ReplayFilePlayer,

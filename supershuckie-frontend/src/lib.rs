@@ -10,6 +10,7 @@ use std::io::Write;
 use std::num::{NonZeroU64, NonZeroU8};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::io::BufWriter;
 use supershuckie_core::emulator::{EmulatorCore, GameBoyColor, Input, Model, PartialReplayRecordMetadata, ScreenData, NullEmulatorCore, NintendoDS};
 use supershuckie_core::{std_timestamp_provider, ReplayPlayerAttachError, Speed, SuperShuckieRapidFire, ThreadedSuperShuckieCore};
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash, ReplayPatchFormat};
@@ -966,8 +967,9 @@ impl SuperShuckieFrontend {
 
             frames_per_keyframe: self.settings.replay.frames_per_keyframe,
 
-            final_file,
-            temp_file,
+            // have a buffer so we don't destroy your SSD
+            final_file: BufWriter::with_capacity(8 * 1024 * 1024, final_file),
+            temp_file: BufWriter::with_capacity(8 * 1024 * 1024, temp_file),
         });
 
         self.recording_replay_file = Some(ReplayFileInfo {

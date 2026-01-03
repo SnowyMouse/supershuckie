@@ -449,6 +449,23 @@ impl ReplayFileSink for File {
 }
 
 #[cfg(feature = "std")]
+impl ReplayFileSink for std::io::BufWriter<File> {
+    fn write_bytes(&mut self, bytes: &[u8]) -> Result<(), ReplayFileWriteError> {
+        self.write_all(bytes)?;
+        Ok(())
+    }
+
+    fn truncate(&mut self, size: u64) -> Result<(), ReplayFileWriteError> {
+        let _ = self.flush();
+
+        let this = self.get_mut();
+        this.set_len(size)?;
+        this.seek(SeekFrom::End(0))?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "std")]
 impl From<std::io::Error> for ReplayFileWriteError {
     fn from(value: std::io::Error) -> Self {
         Self::Other { explanation: Cow::Owned(format!("I/O error: {value}")) }
