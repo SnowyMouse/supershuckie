@@ -139,7 +139,7 @@ dependencies = [
 
 [[package]]
 name = "melonds-rs"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "cc",
 ]
@@ -337,7 +337,7 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "melonds-rs",
  "safeboy",
@@ -348,7 +348,7 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-frontend"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "num_enum",
  "serde",
@@ -359,7 +359,7 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-frontend-c"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "supershuckie-core",
  "supershuckie-frontend",
@@ -367,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-pokeabyte-integration"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "byteorder",
  "cc",
@@ -377,14 +377,14 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-pokeabyte-integration-test"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "supershuckie-pokeabyte-integration",
 ]
 
 [[package]]
 name = "supershuckie-replay-recorder"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "blake3",
  "num_enum",
