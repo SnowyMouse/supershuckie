@@ -6,6 +6,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Mutex;
 use std::sync::{Arc, Weak};
 use alloc::vec::Vec;
+use std::time::Duration;
 
 type RecorderMutex<Final, Temp> = Mutex<ReplayFileRecorder<Final, Temp>>;
 
@@ -16,7 +17,8 @@ pub struct NonBlockingReplayFileRecorder<Final: ReplayFileSink + Send + 'static,
     recorder: Option<Arc<RecorderMutex<Final, Temp>>>,
 
     sender: Sender<ThreadedReplayFileRecorderCommand>,
-    receiver: Receiver<ThreadedReplayFileRecorderResponse>
+    errors: Receiver<ReplayFileWriteError>,
+    closed: Receiver<()>
 }
 
 impl<Final: ReplayFileSink + Send + 'static, Temp: ReplayFileSink + Send + 'static> NonBlockingReplayFileRecorder<Final, Temp> {
@@ -26,11 +28,13 @@ impl<Final: ReplayFileSink + Send + 'static, Temp: ReplayFileSink + Send + 'stat
 
         let (sender_main, receiver_helper) = channel();
         let (sender_helper, receiver_main) = channel();
+        let (closed_helper, closed_main) = channel();
 
         let helper = ThreadedReplayFileRecorderThread {
             recorder: Arc::downgrade(&recorder),
-            sender: sender_helper,
-            receiver: receiver_helper
+            error_sender: sender_helper,
+            receiver: receiver_helper,
+            closed: closed_helper
         };
 
         std::thread::Builder::new()
@@ -42,8 +46,9 @@ impl<Final: ReplayFileSink + Send + 'static, Temp: ReplayFileSink + Send + 'stat
 
         Self {
             sender: sender_main,
-            receiver: receiver_main,
-            recorder: Some(recorder)
+            errors: receiver_main,
+            recorder: Some(recorder),
+            closed: closed_main
         }
     }
 
@@ -53,7 +58,7 @@ impl<Final: ReplayFileSink + Send + 'static, Temp: ReplayFileSink + Send + 'stat
         self.recorder.is_none()
     }
 
-    /// Close the replay file recorder.
+    /// Close the replay file recorder, blocking until closed.
     ///
     /// # Panics
     ///
@@ -62,8 +67,8 @@ impl<Final: ReplayFileSink + Send + 'static, Temp: ReplayFileSink + Send + 'stat
         // Close it
         let _ = self.sender.send(ThreadedReplayFileRecorderCommand::Close);
 
-        // Sever the connection
-        self.sender = channel().0;
+        // Wait for it to be fully closed (thus all writes are processed, etc.)
+        let _ = self.closed.recv();
 
         // If the other thread is busy, we'll need to spin here until it's done.
         let mut a = self.recorder.take().expect("recorder already closed");
@@ -72,6 +77,7 @@ impl<Final: ReplayFileSink + Send + 'static, Temp: ReplayFileSink + Send + 'stat
                 Ok(n) => break n,
                 Err(e) => a = e
             }
+            std::thread::sleep(Duration::from_millis(25));
         };
 
         // This should work unless the thread panicked.
@@ -125,11 +131,7 @@ impl<Final: ReplayFileSink + Send + 'static, Temp: ReplayFileSink + Send + 'stat
     pub fn poll_errors(&mut self) -> Vec<ReplayFileWriteError> {
         let mut errors = Vec::new();
         
-        while let Ok(i) = self.receiver.try_recv() {
-            let error = match i {
-                ThreadedReplayFileRecorderResponse::Error { error } => error,
-                ThreadedReplayFileRecorderResponse::Closed => ReplayFileWriteError::StreamClosed
-            };
+        while let Ok(error) = self.errors.try_recv() {
             errors.push(error);
         }
         
@@ -142,8 +144,9 @@ struct ThreadedReplayFileRecorderThread<Final: ReplayFileSink, Temp: ReplayFileS
 
     // note: the success of sending will never be checked; we do not care because this thread will
     // eventually be closed if it fails
-    sender: Sender<ThreadedReplayFileRecorderResponse>,
+    error_sender: Sender<ReplayFileWriteError>,
     receiver: Receiver<ThreadedReplayFileRecorderCommand>,
+    closed: Sender<()>
 }
 
 impl<Final: ReplayFileSink, Temp: ReplayFileSink> ThreadedReplayFileRecorderThread<Final, Temp> {
@@ -164,11 +167,11 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ThreadedReplayFileRecorderThre
             };
 
             if let Err(e) = self.handle_command(command, &mut recorder) {
-                let _ = self.sender.send(ThreadedReplayFileRecorderResponse::Error { error: e });
+                let _ = self.error_sender.send(e);
             }
         }
 
-        let _ = self.sender.send(ThreadedReplayFileRecorderResponse::Closed);
+        let _ = self.closed.send(());
     }
 
     fn handle_command(&mut self, command: ThreadedReplayFileRecorderCommand, recorder: &mut ReplayFileRecorder<Final, Temp>) -> Result<(), ReplayFileWriteError> {
@@ -213,11 +216,6 @@ enum ThreadedReplayFileRecorderCommand {
     LoadSaveState { state: ByteVec },
     ResetConsole,
     Close
-}
-
-enum ThreadedReplayFileRecorderResponse<> {
-    Error { error: ReplayFileWriteError },
-    Closed
 }
 
 impl<Final: ReplayFileSink + Sync + Send + 'static, Temp: ReplayFileSink + Sync + Send + 'static> ReplayFileRecorderFns for NonBlockingReplayFileRecorder<Final, Temp> {
