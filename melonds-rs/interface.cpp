@@ -92,7 +92,7 @@ extern "C" u32 *melonds_rs_core_get_pixels(MelonDSCoreHolder *core, std::size_t 
 }
 
 extern "C" void melonds_rs_core_set_input(MelonDSCoreHolder *core, std::uint32_t input) {
-    std::uint32_t mask = 0b0000011111111111;
+    std::uint32_t mask = 0b0000111111111111;
 
     auto buttons = input & mask;
     core->nds->SetKeyMask(~buttons & 0xFFF);
