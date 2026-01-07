@@ -196,6 +196,8 @@ pub struct NintendoDSSettings {
     #[serde(default = "NintendoDSDate::default")]
     pub date: NintendoDSDate,
 
+    #[serde(default = "bool::default")]
+    pub jit: bool
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

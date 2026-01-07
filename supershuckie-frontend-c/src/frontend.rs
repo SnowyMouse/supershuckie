@@ -726,3 +726,14 @@ pub extern "C" fn supershuckie_frontend_get_nds_date(frontend: &SuperShuckieFron
 pub extern "C" fn supershuckie_frontend_set_nds_date(frontend: &mut SuperShuckieFrontend, date: &NintendoDSDate) {
     frontend.set_nds_date(*date);
 }
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_get_nds_jit(frontend: &SuperShuckieFrontend) -> bool {
+    frontend.get_jit_enabled()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_set_nds_jit(frontend: &mut SuperShuckieFrontend, enabled: bool) {
+    frontend.set_jit_enabled(enabled)
+}

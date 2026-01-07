@@ -214,9 +214,7 @@ impl SuperShuckieFrontend {
     ///
     /// If it does not exist, `Ok(false)` is returned.
     pub fn load_replay_if_exists(&mut self, name: &str, override_errors: bool) -> Result<bool, UTF8CString> {
-        if !self.is_game_running() {
-            return Err("Game not running".into())
-        }
+        self.assert_replays_available()?;
 
         let current_rom_name = self.get_current_rom_name().expect("no rom name when game is running in load_replay_if_exists");
         let replay_dir = self.get_replays_dir_for_rom(current_rom_name);
@@ -578,7 +576,8 @@ impl SuperShuckieFrontend {
                 let mut core = Box::new(NintendoDS::new_from_rom(
                     rom_data,
                     sram,
-                    std_timestamp_provider()
+                    std_timestamp_provider(),
+                    self.settings.nintendo_ds_settings.jit
                 ));
 
                 let date = self.get_nds_date().get_cleaned();
@@ -643,7 +642,6 @@ impl SuperShuckieFrontend {
 
     /// Set whether or not the game is paused.
     pub fn set_paused(&mut self, paused: bool) {
-        // we still want to do this for config reasons
         self.paused = paused;
 
         if self.is_game_running() {
@@ -743,6 +741,32 @@ impl SuperShuckieFrontend {
     #[inline]
     pub fn set_nds_date(&mut self, date: NintendoDSDate) {
         self.settings.nintendo_ds_settings.date = date;
+    }
+
+    /// Get the Nintendo DS date.
+    #[inline]
+    pub fn get_jit_enabled(&self) -> bool {
+        self.settings.nintendo_ds_settings.jit
+    }
+
+    /// Set the Nintendo DS date.
+    #[inline]
+    pub fn set_jit_enabled(&mut self, enabled: bool) {
+        if self.settings.nintendo_ds_settings.jit == enabled {
+            return
+        }
+        self.settings.nintendo_ds_settings.jit = enabled;
+
+        if self.core_metadata.emulator_type == Some(SuperShuckieEmulatorType::NintendoDS) {
+            self.stop_recording_replay();
+            self.stop_replay_playback();
+
+            self.core.pause();
+            let state = self.core.create_save_state().expect("failed to make save state?");
+            self.reload_rom_in_place();
+            self.core.load_save_state(state);
+        }
+
     }
 
     /// Get a custom setting.
@@ -935,9 +959,7 @@ impl SuperShuckieFrontend {
     ///
     /// Returns the name of the replay if started.
     pub fn start_recording_replay(&mut self, name: Option<&str>) -> Result<UTF8CString, UTF8CString> {
-        if !self.is_game_running() {
-            return Err("Game not running".into())
-        }
+        self.assert_replays_available()?;
 
         let current_rom_name = self.get_current_rom_name_arc().expect("no rom name when game is running in start_recording_replay");
         let save_states_dir = self.get_replays_dir_for_rom(current_rom_name.as_str());
@@ -979,6 +1001,22 @@ impl SuperShuckieFrontend {
         });
 
         Ok(final_replay.into())
+    }
+
+    fn assert_replays_available(&self) -> Result<(), UTF8CString> {
+        let Some(emulator_type) = self.core_metadata.emulator_type else {
+            return Err("No ROM loaded".into());
+        };
+
+        if !self.is_game_running() {
+            return Err("No game running".into());
+        }
+
+        if self.settings.nintendo_ds_settings.jit && emulator_type == SuperShuckieEmulatorType::NintendoDS {
+            return Err("Replays are disabled for Nintendo DS (JIT enabled)".into());
+        }
+
+        Ok(())
     }
 
     /// Stop recording replay.

@@ -99,6 +99,7 @@ private:
     QAction *auto_pause_on_record;
     QAction *keyboard_replay_controls;
     QAction *horizontal_nds;
+    QAction *nds_jit;
 
     QAction *sgb_enabled;
     QMenu *game_boy_settings;
@@ -198,6 +199,7 @@ private slots:
     void do_toggle_sgb();
     void do_open_nds_date_dialog() noexcept;
     void do_toggle_horizontal_nds();
+    void do_toggle_nds_jit();
 };
 
 class NumberedAction: public QAction {

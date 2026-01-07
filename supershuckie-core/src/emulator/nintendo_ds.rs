@@ -22,7 +22,7 @@ pub struct NintendoDS {
 
 impl NintendoDS {
     /// Instantiate from a ROM.
-    pub fn new_from_rom(rom: &[u8], sram: Option<&[u8]>, clock: Box<dyn MonotonicTimestampProvider>) -> Self {
+    pub fn new_from_rom(rom: &[u8], sram: Option<&[u8]>, clock: Box<dyn MonotonicTimestampProvider>, jit: bool) -> Self {
         Self {
             rom_checksum: blake3_hash(rom),
             screens: core::array::from_fn(|_| ScreenData {
@@ -31,7 +31,7 @@ impl NintendoDS {
                 height: 192,
                 encoding: ScreenDataEncoding::A8R8G8B8
             }),
-            core: Core::new(rom, sram.unwrap_or(&[])).expect("failed to make a core (TODO: HANDLE THIS ERROR)"),
+            core: Core::new(rom, sram.unwrap_or(&[]), jit).expect("failed to make a core (TODO: HANDLE THIS ERROR)"),
             last_frame_microseconds: 0,
             microseconds_per_frames: DEFAULT_MICROSECONDS_PER_FRAME,
             clock

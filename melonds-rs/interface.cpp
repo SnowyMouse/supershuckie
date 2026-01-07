@@ -1,3 +1,5 @@
+#define JIT_ENABLED 1
+
 #include "melonDS/src/NDS.h"
 #include "melonDS/src/Platform.h"
 #include <cstdlib>
@@ -16,7 +18,8 @@ extern "C" MelonDSCoreHolder *melonds_rs_core_new(
     const u8 *rom,
     std::size_t rom_size,
     const u8 *sram,
-    std::size_t sram_size
+    std::size_t sram_size,
+    bool jit
 ) {
     NDSCart::NDSCartArgs cartargs;
 
@@ -24,7 +27,14 @@ extern "C" MelonDSCoreHolder *melonds_rs_core_new(
     std::memcpy(file_data.get(), rom, rom_size);
 
     auto *holder = new MelonDSCoreHolder();
-    holder->nds = std::make_unique<NDS>();
+
+    NDSArgs nds_args;
+    if(!jit) {
+        nds_args.JIT = std::nullopt;
+    }
+
+    holder->nds = std::make_unique<NDS>(std::move(nds_args));
+
     static_cast<SoftRenderer &>(holder->nds->GetRenderer3D()).SetThreaded(true, holder->nds->GPU);
     auto cart = NDSCart::ParseROM(std::move(file_data), rom_size, holder, std::move(cartargs));
     if(!cart) {

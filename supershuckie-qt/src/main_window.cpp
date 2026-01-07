@@ -221,6 +221,7 @@ MainWindow::MainWindow(): QMainWindow() {
     this->auto_unpause_on_input->setChecked(supershuckie_frontend_get_auto_unpause_on_input_setting(this->frontend));
     this->auto_pause_on_record->setChecked(supershuckie_frontend_get_auto_pause_on_record_setting(this->frontend));
     this->sgb_enabled->setChecked(supershuckie_frontend_is_sgb_enabled(this->frontend));
+    this->nds_jit->setChecked(supershuckie_frontend_get_nds_jit(this->frontend));
 
     this->sdl.frontend = this->frontend;
     this->render_widget->setFocus(Qt::OtherFocusReason);
@@ -595,6 +596,10 @@ void MainWindow::set_up_settings_menu() {
     this->horizontal_nds = nds_settings->addAction("Arrange horizontally");
     this->horizontal_nds->setCheckable(true);
     connect(this->horizontal_nds, SIGNAL(triggered()), this, SLOT(do_toggle_horizontal_nds()));
+
+    this->nds_jit = nds_settings->addAction("Enable JIT (disables replays)");
+    this->nds_jit->setCheckable(true);
+    connect(this->nds_jit, SIGNAL(triggered()), this, SLOT(do_toggle_nds_jit()));
 
     this->settings_menu->addSeparator();
 
@@ -1032,4 +1037,8 @@ void MainWindow::do_toggle_horizontal_nds() {
     // FIXME: this is a hack
     this->set_video_scale(this->render_widget->current_scale+1);
     this->set_video_scale(this->render_widget->current_scale-1);
+}
+
+void MainWindow::do_toggle_nds_jit() {
+    supershuckie_frontend_set_nds_jit(this->frontend, this->nds_jit->isChecked());
 }

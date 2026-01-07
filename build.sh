@@ -2,7 +2,7 @@
 
 git pull --recurse-submodules=yes
 cmake ./melonds-rs/melonDS -B build/melonDS \
-	-DENABLE_JIT=OFF \
+	-DENABLE_JIT=ON \
 	-DENABLE_OGLRENDERER=OFF \
 	-DENABLE_GDBSTUB=OFF \
 	-DBUILD_QT_SDL=OFF \

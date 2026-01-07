@@ -512,6 +512,16 @@ void supershuckie_frontend_get_nds_date(const struct SuperShuckieFrontendRaw *fr
 void supershuckie_frontend_set_nds_date(struct SuperShuckieFrontendRaw *frontend, const struct SuperShuckieNintendoDSDate *date);
 
 /**
+ * Get if JIT is enabled for the DS.
+ */
+bool supershuckie_frontend_get_nds_jit(const struct SuperShuckieFrontendRaw *frontend);
+
+/**
+ * Set if JIT is enabled for the DS.
+ */
+void supershuckie_frontend_set_nds_jit(struct SuperShuckieFrontendRaw *frontend, bool enabled);
+
+/**
  * Free the core
  *
  * Safety:

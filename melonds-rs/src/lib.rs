@@ -11,7 +11,8 @@ unsafe extern "C" {
         rom: *const u8,
         rom_size: usize,
         sram: *const u8,
-        sram_size: usize
+        sram_size: usize,
+        jit: bool
     ) -> *mut MelonDSCoreHolderRaw;
     fn melonds_rs_core_free(core: *mut MelonDSCoreHolderRaw);
     fn melonds_rs_core_run_frame(core: *mut MelonDSCoreHolderRaw);
@@ -41,8 +42,8 @@ unsafe impl Send for Core {}
 unsafe impl Sync for Core {}
 
 impl Core {
-    pub fn new(rom: &[u8], sram: &[u8]) -> Option<Self> {
-        let inner = unsafe { melonds_rs_core_new(rom.as_ptr(), rom.len(), sram.as_ptr(), sram.len()) };
+    pub fn new(rom: &[u8], sram: &[u8], jit: bool) -> Option<Self> {
+        let inner = unsafe { melonds_rs_core_new(rom.as_ptr(), rom.len(), sram.as_ptr(), sram.len(), jit) };
         if inner.is_null() {
             return None
         }
