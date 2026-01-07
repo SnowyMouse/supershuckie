@@ -43,7 +43,7 @@ NDSDateDialog::NDSDateDialog(MainWindow *main_window): QDialog(main_window), mai
     this->second = new QSpinBox(this);
     layout->addWidget(second, second_row, 1);
 
-    auto *note = new QLabel("Notes:\n• Changes will apply upon loading a save.\n• Replays will override this setting.", this);
+    auto *note = new QLabel("Notes:\n• Changes will apply upon loading a save.\n• Replays and save states will ignore this setting.", this);
     note->setAttribute(Qt::WA_MacSmallSize);
     layout->addWidget(note, 200, 0, 1, 2);
 
