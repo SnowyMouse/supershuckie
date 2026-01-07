@@ -1,17 +1,17 @@
+use crate::util::UTF8CString;
+use crate::SETTINGS_FILE;
+use num_enum::TryFromPrimitive;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::ffi::CStr;
 use std::fs;
 use std::fs::File;
 use std::hint::unreachable_unchecked;
 use std::io::{Read, Seek, SeekFrom};
-use std::num::{NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize};
+use std::num::{NonZeroIsize, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize};
 use std::path::Path;
-use num_enum::TryFromPrimitive;
-use serde::{Deserialize, Serialize};
 use supershuckie_core::emulator::Input;
 use supershuckie_replay_recorder::replay_file::record::ReplayFileRecorderSettings;
-use crate::SETTINGS_FILE;
-use crate::util::UTF8CString;
 
 pub(crate) fn try_to_init_data_dir_and_get_settings(data_dir: &Path, config_dir: &Path) -> Result<Settings, String> {
     if !data_dir.exists() {
@@ -47,6 +47,9 @@ pub struct Settings {
     #[serde(default = "ReplaySettings::default")]
     pub replay: ReplaySettings,
 
+    #[serde(default = "RecentROMs::default")]
+    pub recent_roms: RecentROMs,
+
     #[serde(default = "EmulationSettings::default")]
     pub emulation: EmulationSettings,
 
@@ -77,6 +80,21 @@ impl Settings {
             self.rom_config.insert(rom.to_owned(), ROMConfig::default());
         }
         self.rom_config.get_mut(rom).expect("we just added the rom??")
+    }
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct RecentROMs {
+    pub max_recent_roms: NonZeroIsize,
+    pub recent_roms: Vec<UTF8CString>
+}
+
+impl Default for RecentROMs {
+    fn default() -> Self {
+        Self {
+            max_recent_roms: unsafe { NonZeroIsize::new_unchecked(20) },
+            recent_roms: Vec::new()
+        }
     }
 }
 

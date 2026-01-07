@@ -225,6 +225,7 @@ MainWindow::MainWindow(): QMainWindow() {
 
     this->sdl.frontend = this->frontend;
     this->render_widget->setFocus(Qt::OtherFocusReason);
+    this->rebuild_recent_roms_menu();
 }
 
 void MainWindow::set_title(const char *title) {
@@ -369,6 +370,8 @@ void MainWindow::set_up_file_menu() {
     this->open_rom->setShortcut(QKeyCombination(Qt::ControlModifier, Qt::Key_O));
     connect(this->open_rom, SIGNAL(triggered()), this, SLOT(do_open_rom()));
 
+    this->recent_roms_menu = this->file_menu->addMenu("Open recent ROM");
+
     this->close_rom = this->file_menu->addAction("Close ROM");
     this->close_rom->setShortcut(QKeyCombination(Qt::ControlModifier, Qt::Key_W));
     connect(this->close_rom, SIGNAL(triggered()), this, SLOT(do_close_rom()));
@@ -501,6 +504,17 @@ void NumberedAction::activated() {
         return;
     }
     (this->parent->*this->activated_fn)(this->number);
+}
+
+StringAction::StringAction(MainWindow *parent, const char *text, const char *string, on_activated activated): QAction(text, parent), string(string), parent(parent), activated_fn(activated) {
+    connect(this, SIGNAL(triggered()), this, SLOT(activated()));
+}
+
+void StringAction::activated() {
+    if(this->parent->frontend == nullptr) {
+        return;
+    }
+    (this->parent->*this->activated_fn)(this->string.c_str());
 }
 
 void MainWindow::set_video_scale(std::uint8_t scale) {
@@ -705,6 +719,12 @@ void MainWindow::load_rom(const std::filesystem::path &path) {
     if(!supershuckie_frontend_load_rom(this->frontend, path.string().c_str(), error, sizeof(error))) {
         DISPLAY_ERROR_DIALOG("Can't load ROM", "\"%s\" failed to load:\n\n%s", path_string.c_str(), error);
     }
+
+    this->rebuild_recent_roms_menu();
+}
+
+void MainWindow::load_rom(const char *path) {
+    this->load_rom(std::filesystem::path(path));
 }
 
 void MainWindow::do_close_rom() {
@@ -1041,4 +1061,26 @@ void MainWindow::do_toggle_horizontal_nds() {
 
 void MainWindow::do_toggle_nds_jit() {
     supershuckie_frontend_set_nds_jit(this->frontend, this->nds_jit->isChecked());
+}
+
+void MainWindow::rebuild_recent_roms_menu() noexcept {
+    this->recent_roms_menu->clear();
+
+    auto menu = wrap_array_std(supershuckie_frontend_get_recent_roms(this->frontend));
+    for(auto &item : menu) {
+        this->recent_roms_menu->addAction(new StringAction(this, item.c_str(), item.c_str(), &MainWindow::load_rom));
+    }
+
+    if(!menu.empty()) {
+        this->recent_roms_menu->addSeparator();
+    }
+
+    auto *clear = this->recent_roms_menu->addAction("Clear list");
+    connect(clear, SIGNAL(triggered()), this, SLOT(do_clear_recent_roms()));
+    clear->setEnabled(!menu.empty());
+}
+
+void MainWindow::do_clear_recent_roms() {
+    supershuckie_frontend_clear_recent_roms(this->frontend);
+    this->rebuild_recent_roms_menu();
 }

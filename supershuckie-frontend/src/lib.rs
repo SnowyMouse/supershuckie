@@ -8,7 +8,7 @@ use std::ffi::CStr;
 use std::fs::File;
 use std::io::Write;
 use std::num::{NonZeroU64, NonZeroU8};
-use std::path::{Path, PathBuf};
+use std::path::{absolute, Path, PathBuf};
 use std::sync::Arc;
 use std::io::BufWriter;
 use supershuckie_core::emulator::{EmulatorCore, GameBoyColor, Input, Model, PartialReplayRecordMetadata, ScreenData, NullEmulatorCore, NintendoDS};
@@ -457,6 +457,12 @@ impl SuperShuckieFrontend {
 
     pub fn load_rom<P: AsRef<Path>>(&mut self, path: P) -> Result<(), UTF8CString> {
         let path = path.as_ref();
+        let Ok(path) = absolute(path) else {
+            return Err(format!("Can't resolve path {} (failed)", path.display()).into())
+        };
+        let Some(path_utf8) = path.to_str() else {
+            return Err(format!("Can't resolve path {} (not UTF-8)", path.display()).into())
+        };
 
         let Some(filename) = path.file_name().and_then(|i| i.to_str()) else {
             return Err(format!(
@@ -469,7 +475,7 @@ impl SuperShuckieFrontend {
             return Err(format!("{filename} does not appear to be a valid ROM file (missing extension)").into())
         };
 
-        let data = std::fs::read(path).map_err(|e| {
+        let data = std::fs::read(&path).map_err(|e| {
             format!("Failed to read ROM at {filename}: {e}")
         })?;
 
@@ -486,20 +492,40 @@ impl SuperShuckieFrontend {
         self.core_metadata.emulator_type = Some(emulator_to_use);
         self.save_file = Some(Arc::new(self.get_current_save_file_name_for_rom(filename)));
         self.reload_rom_in_place();
+
+        let path_cstr = UTF8CString::from_str(path_utf8);
+        self.settings.recent_roms.recent_roms.retain(|i| i != &path_cstr);
+        self.settings.recent_roms.recent_roms.insert(0, path_cstr);
+
         Ok(())
     }
 
+    /// Get all recent ROMs.
+    #[inline]
+    pub fn get_recent_roms(&self) -> Vec<UTF8CString> {
+        self.settings.recent_roms.recent_roms.clone()
+    }
+
+    /// Clear all recent ROMs.
+    #[inline]
+    pub fn clear_recent_roms(&mut self) {
+        self.settings.recent_roms.recent_roms.clear();
+    }
+
     /// Get the control settings.
+    #[inline]
     pub fn get_control_settings(&self) -> &Controls {
         &self.settings.controls
     }
 
     /// Overwrite the control settings.
+    #[inline]
     pub fn set_control_settings(&mut self, controls: Controls) {
         self.settings.controls = controls
     }
 
     /// Hard reset the console.
+    #[inline]
     pub fn hard_reset_console(&mut self) {
         self.core.hard_reset()
     }

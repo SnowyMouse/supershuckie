@@ -25,6 +25,7 @@ class SelectItemDialog;
 class ControlsSettingsWindow;
 class ReplayPlaybackControls;
 class NDSDateDialog;
+class StringAction;
 
 std::vector<std::string> wrap_array_std(SuperShuckieStringArrayRaw *array);
 
@@ -44,12 +45,14 @@ class MainWindow: public QMainWindow {
     friend ControlsSettingsWindow;
     friend ReplayPlaybackControls;
     friend NDSDateDialog;
+    friend StringAction;
     
 public:
     MainWindow();
     ~MainWindow();
 
     void load_rom(const std::filesystem::path &path);
+    void load_rom(const char *path);
 
 private:
     typedef std::chrono::steady_clock clock;
@@ -70,6 +73,7 @@ private:
     QMenu *save_states_menu;
     QMenu *replays_menu;
     QMenu *settings_menu;
+    QMenu *recent_roms_menu;
 
     QMenu *quick_slots;
     QAction *undo_load_save_state;
@@ -136,6 +140,8 @@ private:
     void set_up_replays_menu();
     void set_up_settings_menu();
 
+    void rebuild_recent_roms_menu() noexcept;
+
     void refresh_action_states();
     void set_quick_load_shortcuts();
 
@@ -200,6 +206,7 @@ private slots:
     void do_open_nds_date_dialog() noexcept;
     void do_toggle_horizontal_nds();
     void do_toggle_nds_jit();
+    void do_clear_recent_roms();
 };
 
 class NumberedAction: public QAction {
@@ -210,6 +217,20 @@ public:
     NumberedAction(MainWindow *parent, const char *text, std::uint8_t number, on_activated activated);
 private:
     std::uint8_t number;
+    MainWindow *parent;
+    on_activated activated_fn;
+private slots:
+    void activated();
+};
+
+class StringAction: public QAction {
+    Q_OBJECT
+    friend MainWindow;
+public:
+    typedef void (MainWindow::*on_activated)(const char *);
+    StringAction(MainWindow *parent, const char *text, const char *string, on_activated activated);
+private:
+    std::string string;
     MainWindow *parent;
     on_activated activated_fn;
 private slots:

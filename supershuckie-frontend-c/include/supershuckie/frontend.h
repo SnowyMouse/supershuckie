@@ -522,6 +522,18 @@ bool supershuckie_frontend_get_nds_jit(const struct SuperShuckieFrontendRaw *fro
 void supershuckie_frontend_set_nds_jit(struct SuperShuckieFrontendRaw *frontend, bool enabled);
 
 /**
+ * Get all recent ROMs.
+ *
+ * The resulting string array must be freed with supershuckie_stringarray_free.
+ */
+struct SuperShuckieStringArrayRaw *supershuckie_frontend_get_recent_roms(const struct SuperShuckieFrontendRaw *frontend);
+
+/**
+ * Clear all recent ROMs.
+ */
+struct SuperShuckieStringArrayRaw *supershuckie_frontend_clear_recent_roms(struct SuperShuckieFrontendRaw *frontend);
+
+/**
  * Free the core
  *
  * Safety:

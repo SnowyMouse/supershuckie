@@ -737,3 +737,13 @@ pub extern "C" fn supershuckie_frontend_get_nds_jit(frontend: &SuperShuckieFront
 pub extern "C" fn supershuckie_frontend_set_nds_jit(frontend: &mut SuperShuckieFrontend, enabled: bool) {
     frontend.set_jit_enabled(enabled)
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_get_recent_roms(frontend: &SuperShuckieFrontend) -> *mut SuperShuckieStringArray {
+    Box::into_raw(Box::new(SuperShuckieStringArray(frontend.get_recent_roms())))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_clear_recent_roms(frontend: &mut SuperShuckieFrontend) {
+    frontend.clear_recent_roms()
+}
