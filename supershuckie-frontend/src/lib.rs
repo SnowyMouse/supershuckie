@@ -721,9 +721,20 @@ impl SuperShuckieFrontend {
         self.refresh_screen(true);
     }
 
-    /// Set the video scale.
+    /// Set the video scale for the current system.
+    ///
+    /// This value is saved per-system.
     pub fn set_video_scale(&mut self, scale: NonZeroU8) {
-        let old_scale = &mut self.settings.emulation.video_scale;
+        let old_scale = match self.core_metadata.emulator_type {
+            None => return,
+            Some(n) => match n {
+                SuperShuckieEmulatorType::GameBoy
+                | SuperShuckieEmulatorType::GameBoySGB2
+                | SuperShuckieEmulatorType::GameBoyColor => &mut self.settings.game_boy_settings.video_scale,
+                SuperShuckieEmulatorType::NintendoDS => &mut self.settings.nintendo_ds_settings.video_scale
+            }
+        };
+
         if scale == *old_scale {
             return
         }
@@ -1085,8 +1096,18 @@ impl SuperShuckieFrontend {
     }
 
     fn update_video_mode(&mut self) {
+        let video_scale = match self.core_metadata.emulator_type {
+            None => unsafe { NonZeroU8::new_unchecked(4) },
+            Some(n) => match n {
+                SuperShuckieEmulatorType::GameBoy
+                | SuperShuckieEmulatorType::GameBoySGB2
+                | SuperShuckieEmulatorType::GameBoyColor => self.settings.game_boy_settings.video_scale,
+                SuperShuckieEmulatorType::NintendoDS => self.settings.nintendo_ds_settings.video_scale
+            }
+        };
+
         self.core.read_screens(|screens| {
-            self.callbacks.change_video_mode(screens, self.settings.emulation.video_scale);
+            self.callbacks.change_video_mode(screens, video_scale);
         });
     }
 

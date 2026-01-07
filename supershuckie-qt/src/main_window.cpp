@@ -653,6 +653,10 @@ void MainWindow::refresh_action_states() {
     this->resume_replay->setEnabled(game_loaded);
     this->game_boy_settings->setEnabled(true);
 
+    for(auto &scale : this->change_video_scale) {
+        scale->setEnabled(game_loaded);
+    }
+
     auto replay_state = this->frontend != nullptr ?
         supershuckie_frontend_get_replay_state(this->frontend) : SuperShuckieReplayState::SuperShuckieReplayState__NoReplay;
 

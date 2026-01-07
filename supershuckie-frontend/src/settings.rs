@@ -175,9 +175,6 @@ pub struct EmulationSettings {
     #[serde(default = "EmulationSettings::DEFAULT_TURBO_SPEED_MULTIPLIER")]
     pub turbo_speed_multiplier: f64,
 
-    #[serde(default = "EmulationSettings::DEFAULT_VIDEO_SCALE")]
-    pub video_scale: NonZeroU8,
-
     #[serde(default = "EmulationSettings::DEFAULT_MAX_SAVE_STATE_HISTORY")]
     pub max_save_state_history: NonZeroUsize
 }
@@ -185,7 +182,6 @@ pub struct EmulationSettings {
 impl EmulationSettings {
     const DEFAULT_BASE_SPEED_MULTIPLIER: fn() -> f64 = || 1.0;
     const DEFAULT_TURBO_SPEED_MULTIPLIER: fn() -> f64 = || 2.0;
-    const DEFAULT_VIDEO_SCALE: fn() -> NonZeroU8 = || unsafe { NonZeroU8::new_unchecked(4) };
     const DEFAULT_MAX_SAVE_STATE_HISTORY: fn() -> NonZeroUsize = || unsafe { NonZeroUsize::new_unchecked(100) };
 }
 
@@ -194,28 +190,61 @@ impl Default for EmulationSettings {
         Self {
             base_speed_multiplier: EmulationSettings::DEFAULT_BASE_SPEED_MULTIPLIER(),
             turbo_speed_multiplier: EmulationSettings::DEFAULT_TURBO_SPEED_MULTIPLIER(),
-            video_scale: EmulationSettings::DEFAULT_VIDEO_SCALE(),
             max_save_state_history: EmulationSettings::DEFAULT_MAX_SAVE_STATE_HISTORY()
         }
     }
 }
 
-#[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct GameBoySettings {
     #[serde(default = "GameBoyMode::default")]
     pub gbc_mode: GameBoyMode,
 
     #[serde(default = "bool::default")]
-    pub sgb: bool
+    pub sgb: bool,
+
+    #[serde(default = "GameBoySettings::DEFAULT_VIDEO_SCALE")]
+    pub video_scale: NonZeroU8
 }
 
-#[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
+impl GameBoySettings {
+    const DEFAULT_VIDEO_SCALE: fn() -> NonZeroU8 = || unsafe { NonZeroU8::new_unchecked(4) };
+}
+
+impl Default for GameBoySettings {
+    fn default() -> Self {
+        Self {
+            gbc_mode: GameBoyMode::default(),
+            sgb: false,
+            video_scale: Self::DEFAULT_VIDEO_SCALE()
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct NintendoDSSettings {
     #[serde(default = "NintendoDSDate::default")]
     pub date: NintendoDSDate,
 
     #[serde(default = "bool::default")]
-    pub jit: bool
+    pub jit: bool,
+
+    #[serde(default = "NintendoDSSettings::DEFAULT_VIDEO_SCALE")]
+    pub video_scale: NonZeroU8
+}
+
+impl NintendoDSSettings {
+    const DEFAULT_VIDEO_SCALE: fn() -> NonZeroU8 = || unsafe { NonZeroU8::new_unchecked(2) };
+}
+
+impl Default for NintendoDSSettings {
+    fn default() -> Self {
+        Self {
+            date: NintendoDSDate::default(),
+            jit: false,
+            video_scale: Self::DEFAULT_VIDEO_SCALE()
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
