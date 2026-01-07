@@ -21,18 +21,18 @@ default-members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 license = "GPL-3.0-only"
 rust-version = "1.89.0"
 
 [workspace.dependencies]
 # Keep up-to-date
-supershuckie-replay-recorder = { version = "0.2.1", path = "supershuckie-replay-recorder" }
-supershuckie-pokeabyte-integration = { version = "0.2.1", path = "supershuckie-pokeabyte-integration" }
-supershuckie-core = { version = "0.2.1", path = "supershuckie-core" }
-supershuckie-frontend = { version = "0.2.1", path = "supershuckie-frontend" }
-melonds-rs = { version = "0.2.1", path = "melonds-rs" }
+supershuckie-replay-recorder = { version = "0.2.2", path = "supershuckie-replay-recorder" }
+supershuckie-pokeabyte-integration = { version = "0.2.2", path = "supershuckie-pokeabyte-integration" }
+supershuckie-core = { version = "0.2.2", path = "supershuckie-core" }
+supershuckie-frontend = { version = "0.2.2", path = "supershuckie-frontend" }
+melonds-rs = { version = "0.2.2", path = "melonds-rs" }
 
 num_enum = "0.7.5"
 tinyvec = { version = "1.10.0", features = ["alloc"], default-features = false }
