@@ -1,3 +1,6 @@
 [submodule "melonds-rs/melonDS"]
 	path = melonds-rs/melonDS
 	url = https://github.com/melonDS-emu/melonDS.git
+[submodule "mgba-rs/mgba"]
+	path = mgba-rs/mgba
+	url = https://github.com/mgba-emu/mgba.git

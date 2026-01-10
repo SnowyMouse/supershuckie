@@ -11,7 +11,7 @@ use std::num::{NonZeroU64, NonZeroU8};
 use std::path::{absolute, Path, PathBuf};
 use std::sync::Arc;
 use std::io::BufWriter;
-use supershuckie_core::emulator::{EmulatorCore, GameBoyColor, Input, Model, PartialReplayRecordMetadata, ScreenData, NullEmulatorCore, NintendoDS};
+use supershuckie_core::emulator::{EmulatorCore, GameBoyColor, Input, Model, PartialReplayRecordMetadata, ScreenData, NullEmulatorCore, NintendoDS, GameBoyAdvance};
 use supershuckie_core::{std_timestamp_provider, ReplayPlayerAttachError, Speed, SuperShuckieRapidFire, ThreadedSuperShuckieCore};
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash, ReplayPatchFormat};
 use supershuckie_replay_recorder::ByteVec;
@@ -30,6 +30,7 @@ pub enum SuperShuckieEmulatorType {
     GameBoy,
     GameBoySGB2,
     GameBoyColor,
+    GameBoyAdvance,
     NintendoDS
 }
 
@@ -481,6 +482,7 @@ impl SuperShuckieFrontend {
 
         let emulator_to_use = match extension.to_lowercase().as_str() {
             "gb" | "gbc" => self.choose_for_game_boy(data.as_slice()),
+            "gba" => SuperShuckieEmulatorType::GameBoyAdvance,
             "nds" => SuperShuckieEmulatorType::NintendoDS,
             unknown => return Err(format!("Unknown or unsupported ROM file type .{unknown}").into())
         };
@@ -597,7 +599,7 @@ impl SuperShuckieFrontend {
             SuperShuckieEmulatorType::GameBoy => Box::new(GameBoyColor::new_from_rom(rom_data, bios.as_slice(), sram, Model::DmgB)),
             SuperShuckieEmulatorType::GameBoySGB2 => Box::new(GameBoyColor::new_from_rom(rom_data, bios.as_slice(), sram, Model::Sgb2)),
             SuperShuckieEmulatorType::GameBoyColor => Box::new(GameBoyColor::new_from_rom(rom_data, bios.as_slice(), sram, Model::Cgb0)),
-
+            SuperShuckieEmulatorType::GameBoyAdvance => Box::new(GameBoyAdvance::new_from_rom(rom_data, sram, bios.as_slice(), std_timestamp_provider())),
             SuperShuckieEmulatorType::NintendoDS => {
                 let mut core = Box::new(NintendoDS::new_from_rom(
                     rom_data,
@@ -645,6 +647,7 @@ impl SuperShuckieFrontend {
         match emulator_kind {
             SuperShuckieEmulatorType::GameBoy | SuperShuckieEmulatorType::GameBoySGB2 => include_bytes!("../../bootrom/dmg/dmg.bin").to_vec(),
             SuperShuckieEmulatorType::GameBoyColor => include_bytes!("../../bootrom/cgb/cgb_boot/cgb_boot_fast.bin").to_vec(),
+            SuperShuckieEmulatorType::GameBoyAdvance => include_bytes!("../../bootrom/agb/gba_bios.bin").to_vec(),
             SuperShuckieEmulatorType::NintendoDS => Vec::new()
         }
     }
@@ -731,6 +734,7 @@ impl SuperShuckieFrontend {
                 SuperShuckieEmulatorType::GameBoy
                 | SuperShuckieEmulatorType::GameBoySGB2
                 | SuperShuckieEmulatorType::GameBoyColor => &mut self.settings.game_boy_settings.video_scale,
+                SuperShuckieEmulatorType::GameBoyAdvance => &mut self.settings.game_boy_advance_settings.video_scale,
                 SuperShuckieEmulatorType::NintendoDS => &mut self.settings.nintendo_ds_settings.video_scale
             }
         };
@@ -1102,6 +1106,7 @@ impl SuperShuckieFrontend {
                 SuperShuckieEmulatorType::GameBoy
                 | SuperShuckieEmulatorType::GameBoySGB2
                 | SuperShuckieEmulatorType::GameBoyColor => self.settings.game_boy_settings.video_scale,
+                SuperShuckieEmulatorType::GameBoyAdvance => self.settings.game_boy_advance_settings.video_scale,
                 SuperShuckieEmulatorType::NintendoDS => self.settings.nintendo_ds_settings.video_scale
             }
         };

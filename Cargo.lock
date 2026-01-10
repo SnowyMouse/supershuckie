@@ -139,7 +139,7 @@ dependencies = [
 
 [[package]]
 name = "melonds-rs"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "cc",
 ]
@@ -149,6 +149,13 @@ name = "memchr"
 version = "2.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
+
+[[package]]
+name = "mgba-rs"
+version = "0.3.0"
+dependencies = [
+ "cc",
+]
 
 [[package]]
 name = "num_enum"
@@ -337,9 +344,10 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-core"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "melonds-rs",
+ "mgba-rs",
  "safeboy",
  "spin",
  "supershuckie-pokeabyte-integration",
@@ -348,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-frontend"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "num_enum",
  "serde",
@@ -359,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-frontend-c"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "supershuckie-core",
  "supershuckie-frontend",
@@ -367,7 +375,7 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-pokeabyte-integration"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "byteorder",
  "cc",
@@ -377,14 +385,14 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-pokeabyte-integration-test"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "supershuckie-pokeabyte-integration",
 ]
 
 [[package]]
 name = "supershuckie-replay-recorder"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "blake3",
  "num_enum",

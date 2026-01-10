@@ -49,10 +49,6 @@ impl EmulatorCore for NullEmulatorCore {
         Vec::new()
     }
 
-    fn load_sram(&mut self, state: &[u8]) -> Result<(), String> {
-        Ok(())
-    }
-
     fn create_save_state(&self) -> Vec<u8> {
         Vec::new()
     }

@@ -3,11 +3,14 @@
 mod game_boy_color;
 mod null;
 mod nintendo_ds;
+mod game_boy_advance;
 
 use alloc::string::String;
+
 pub use game_boy_color::*;
 pub use null::*;
 pub use nintendo_ds::*;
+pub use game_boy_advance::*;
 
 use alloc::vec::Vec;
 use std::num::NonZeroU64;
@@ -38,9 +41,6 @@ pub trait EmulatorCore: Send + 'static {
 
     /// Create SRAM.
     fn save_sram(&self) -> Vec<u8>;
-
-    /// Load the given SRAM.
-    fn load_sram(&mut self, state: &[u8]) -> Result<(), String>;
 
     /// Create a save state.
     fn create_save_state(&self) -> Vec<u8>;

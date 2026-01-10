@@ -1,6 +1,6 @@
 1 VERSIONINFO
-FILEVERSION      0,2,2,0
-PRODUCTVERSION   0,2,2,0
+FILEVERSION      0,3,0,0
+PRODUCTVERSION   0,3,0,0
 BEGIN
     BLOCK "StringFileInfo"
     BEGIN
@@ -9,11 +9,11 @@ BEGIN
             VALUE "Comments",         "SuperShuckie"
             VALUE "CompanyName",      "Snowy Mouse"
             VALUE "FileDescription",  "SuperShuckie"
-            VALUE "FileVersion",      "0.2.2.0"
+            VALUE "FileVersion",      "0.3.0.0"
             VALUE "InternalName",     "supershuckie"
             VALUE "OriginalFilename", "supershuckie.exe"
             VALUE "ProductName",      "supershuckie"
-            VALUE "ProductVersion",   "0.2.2.0"
+            VALUE "ProductVersion",   "0.3.0.0"
             VALUE "LegalCopyright",   "'25 Snowy Mouse"
         END
     END
