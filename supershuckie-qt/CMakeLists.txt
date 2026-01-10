@@ -47,11 +47,13 @@ target_link_libraries(supershuckie-cpp-static
 )
 
 if(SCRIPT_BUILD)
+    find_library(MGBA_CORE NAMES mgba PATHS ${CMAKE_BINARY_DIR}/mgba)
     find_library(MELONDS_CORE NAMES core PATHS ${CMAKE_BINARY_DIR}/melonDS/src/)
     find_library(MELONDS_TEAKRA NAMES teakra PATHS ${CMAKE_BINARY_DIR}/melonDS/src/teakra/src)
     target_link_libraries(supershuckie-cpp-static
         PUBLIC ${MELONDS_CORE}
         PUBLIC ${MELONDS_TEAKRA}
+        PUBLIC ${MGBA_CORE}
     )
 endif()
 

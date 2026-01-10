@@ -11,6 +11,7 @@ supershuckie-replay-recorder = { workspace = true }
 supershuckie-pokeabyte-integration = { workspace = true, optional = true }
 spin = { workspace = true }
 melonds-rs = { workspace = true }
+mgba-rs = { workspace = true }
 
 [features]
 default = ["std", "pokeabyte"]

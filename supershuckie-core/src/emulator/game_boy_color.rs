@@ -169,11 +169,6 @@ impl EmulatorCore for GameBoyColor {
         self.core.save_sram()
     }
 
-    fn load_sram(&mut self, state: &[u8]) -> Result<(), String> {
-        self.core.load_sram(state);
-        Ok(())
-    }
-
     fn create_save_state(&self) -> Vec<u8> {
         self.core.create_save_state()
     }

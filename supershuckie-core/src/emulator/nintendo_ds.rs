@@ -119,10 +119,6 @@ impl EmulatorCore for NintendoDS {
         self.core.get_sram().to_vec()
     }
 
-    fn load_sram(&mut self, state: &[u8]) -> Result<(), String> {
-        Ok(())
-    }
-
     fn create_save_state(&self) -> Vec<u8> {
         self.core.create_save_state().expect("failed to make NDS save state???")
     }
@@ -157,11 +153,11 @@ impl EmulatorCore for NintendoDS {
         }
 
         into.clear();
-        into.extend_from_slice(value.to_ne_bytes().as_slice());
+        into.extend_from_slice(value.to_le_bytes().as_slice());
     }
 
     fn set_input_encoded(&mut self, input: &[u8]) {
-        self.core.set_input(u32::from_ne_bytes(input.try_into().unwrap_or([0u8; 4])))
+        self.core.set_input(u32::from_le_bytes(input.try_into().unwrap_or([0u8; 4])))
     }
 
     fn get_screens(&self) -> &[ScreenData] {

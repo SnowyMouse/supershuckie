@@ -55,6 +55,9 @@ pub struct Settings {
 
     #[serde(default = "GameBoySettings::default")]
     pub game_boy_settings: GameBoySettings,
+    
+    #[serde(default = "GameBoyAdvanceSettings::default")]
+    pub game_boy_advance_settings: GameBoyAdvanceSettings,
 
     #[serde(default = "NintendoDSSettings::default")]
     pub nintendo_ds_settings: NintendoDSSettings,
@@ -216,6 +219,24 @@ impl Default for GameBoySettings {
         Self {
             gbc_mode: GameBoyMode::default(),
             sgb: false,
+            video_scale: Self::DEFAULT_VIDEO_SCALE()
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GameBoyAdvanceSettings {
+    #[serde(default = "GameBoyAdvanceSettings::DEFAULT_VIDEO_SCALE")]
+    pub video_scale: NonZeroU8
+}
+
+impl GameBoyAdvanceSettings {
+    const DEFAULT_VIDEO_SCALE: fn() -> NonZeroU8 = || unsafe { NonZeroU8::new_unchecked(4) };
+}
+
+impl Default for GameBoyAdvanceSettings {
+    fn default() -> Self {
+        Self {
             video_scale: Self::DEFAULT_VIDEO_SCALE()
         }
     }
