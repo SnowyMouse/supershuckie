@@ -3,6 +3,7 @@ use spin::Lazy;
 use crate::emulator::{EmulatorCore, Input, RunTime, ScreenData, ScreenDataEncoding};
 use alloc::string::String;
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash};
+use supershuckie_replay_recorder::TimestampMicros;
 
 /// An emulator that does nothing.
 ///
@@ -91,5 +92,9 @@ impl EmulatorCore for NullEmulatorCore {
 
     fn core_name(&self) -> &'static str {
         "Null"
+    }
+
+    fn target_frame_time(&self) -> TimestampMicros {
+        1
     }
 }

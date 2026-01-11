@@ -522,6 +522,16 @@ bool supershuckie_frontend_get_nds_jit(const struct SuperShuckieFrontendRaw *fro
 void supershuckie_frontend_set_nds_jit(struct SuperShuckieFrontendRaw *frontend, bool enabled);
 
 /**
+ * Get if FPS stabilization is enabled.
+ */
+size_t supershuckie_frontend_get_fps_stabilization(const struct SuperShuckieFrontendRaw *frontend);
+
+/**
+ * Set FPS stabilization.
+ */
+void supershuckie_frontend_set_fps_stabilization(struct SuperShuckieFrontendRaw *frontend, size_t setting);
+
+/**
  * Get all recent ROMs.
  *
  * The resulting string array must be freed with supershuckie_stringarray_free.

@@ -14,7 +14,7 @@ pub use game_boy_advance::*;
 
 use alloc::vec::Vec;
 use std::num::NonZeroU64;
-use supershuckie_replay_recorder::ByteVec;
+use supershuckie_replay_recorder::{ByteVec, TimestampMicros};
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash, ReplayPatchFormat};
 use supershuckie_replay_recorder::replay_file::record::{ReplayFileRecorderSettings, ReplayFileSink};
 
@@ -83,6 +83,9 @@ pub trait EmulatorCore: Send + 'static {
 
     /// Get the current core name.
     fn core_name(&self) -> &'static str;
+
+    /// Target FPS
+    fn target_frame_time(&self) -> TimestampMicros;
 }
 
 /// Amount of time passed when running the emulator core.

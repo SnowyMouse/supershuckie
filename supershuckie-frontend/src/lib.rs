@@ -1,7 +1,7 @@
 pub mod util;
 pub mod settings;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use crate::settings::*;
 use crate::util::UTF8CString;
 use std::ffi::CStr;
@@ -12,9 +12,9 @@ use std::path::{absolute, Path, PathBuf};
 use std::sync::Arc;
 use std::io::BufWriter;
 use supershuckie_core::emulator::{EmulatorCore, GameBoyColor, Input, Model, PartialReplayRecordMetadata, ScreenData, NullEmulatorCore, NintendoDS, GameBoyAdvance};
-use supershuckie_core::{std_timestamp_provider, ReplayPlayerAttachError, Speed, SuperShuckieRapidFire, ThreadedSuperShuckieCore};
+use supershuckie_core::{std_timestamp_provider, MonotonicTimestampProvider, ReplayPlayerAttachError, Speed, SuperShuckieRapidFire, ThreadedSuperShuckieCore};
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash, ReplayPatchFormat};
-use supershuckie_replay_recorder::ByteVec;
+use supershuckie_replay_recorder::{ByteVec, TimestampMicros};
 use supershuckie_replay_recorder::replay_file::playback::ReplayFilePlayer;
 use supershuckie_replay_recorder::replay_file::record::ReplayFileRecorderSettings;
 
@@ -58,6 +58,7 @@ pub struct SuperShuckieFrontend {
     current_toggled_input: Option<Input>,
     current_save_state_history: Vec<Vec<u8>>,
     current_save_state_history_position: usize,
+    buffered_frames: BufferedFrames,
 
     connected_controllers: BTreeMap<ConnectedControllerIndex, UTF8CString>,
 
@@ -68,6 +69,28 @@ pub struct SuperShuckieFrontend {
     paused: bool,
 
     settings: Settings
+}
+
+struct BufferedFrames {
+    frames: VecDeque<Vec<ScreenData>>,
+    max_size: usize,
+    timer: Box<dyn MonotonicTimestampProvider>,
+    last_time: TimestampMicros,
+    buffer_active: bool,
+    core_target_frame_time: TimestampMicros,
+}
+
+impl BufferedFrames {
+    fn new(max_size: usize, frame_time: TimestampMicros) -> Self {
+        Self {
+            frames: VecDeque::with_capacity(64),
+            max_size,
+            timer: std_timestamp_provider(),
+            last_time: 0,
+            buffer_active: false,
+            core_target_frame_time: frame_time,
+        }
+    }
 }
 
 impl SuperShuckieFrontend {
@@ -99,6 +122,7 @@ impl SuperShuckieFrontend {
             pokeabyte_error: None,
             paused: false,
             config_dir: config_dir.as_ref().to_owned(),
+            buffered_frames: BufferedFrames::new(0, 0),
             connected_controllers: BTreeMap::new()
         };
 
@@ -575,6 +599,7 @@ impl SuperShuckieFrontend {
         let save_file_data = self.get_save_file_data(rom_name, save_file);
         let rom_data = self.loaded_rom_data.as_ref().expect("reload_rom_in_place with no loaded rom");
         let core = self.make_new_core(rom_data, save_file_data, emulator_type);
+        self.buffered_frames = BufferedFrames::new(self.settings.emulation.frame_rate_stabilization, core.target_frame_time());
         self.switch_core(ThreadedSuperShuckieCore::new(core));
     }
 
@@ -666,6 +691,7 @@ impl SuperShuckieFrontend {
         self.rom_name = None;
         self.core_metadata.emulator_type = None;
         self.current_input = Input::default();
+        self.buffered_frames = BufferedFrames::new(0, 0);
         self.after_switch_core();
     }
 
@@ -885,14 +911,63 @@ impl SuperShuckieFrontend {
 
     fn refresh_screen(&mut self, force: bool) {
         let current_frame_count = self.core.get_elapsed_frames();
-        if force || current_frame_count == self.frame_count {
+
+        if force || current_frame_count != self.frame_count {
+            self.frame_count = current_frame_count;
+
+            // Show it now!
+            if self.paused || self.buffered_frames.max_size == 0 {
+                self.core.read_screens(|screens| {
+                    self.callbacks.refresh_screens(screens);
+                });
+                self.buffered_frames.frames.clear();
+                if self.buffered_frames.max_size > 0 {
+                    self.buffered_frames.last_time = self.buffered_frames.timer.get_timestamp_microseconds();
+                }
+                return;
+            }
+
+            let latest_frame = self.core.read_screens(|screens| {
+                screens.to_vec()
+            });
+
+            self.buffered_frames.frames.push_back(latest_frame);
+
+            // if this is our only frame, we should probably still show it
+            if self.buffered_frames.frames.len() == 1 {
+                self.callbacks.refresh_screens(&self.buffered_frames.frames[0]);
+                return;
+            }
+        }
+
+        if self.buffered_frames.max_size == 0 {
             return
         }
 
-        self.frame_count = current_frame_count;
-        self.core.read_screens(|screens| {
-            self.callbacks.refresh_screens(screens);
-        })
+        let now = self.buffered_frames.timer.get_timestamp_microseconds();
+
+        if self.buffered_frames.frames.len() >= self.buffered_frames.max_size && !self.buffered_frames.buffer_active {
+            self.buffered_frames.buffer_active = true;
+            self.buffered_frames.last_time = now;
+        }
+
+        if !self.buffered_frames.buffer_active {
+            return;
+        }
+
+        let per_frame = ((self.buffered_frames.core_target_frame_time as f64) / self.core.get_current_speed().into_multiplier_float()) as TimestampMicros;
+        if self.buffered_frames.last_time + per_frame > now {
+            return;
+        }
+
+        if self.buffered_frames.frames.is_empty() {
+            self.buffered_frames.buffer_active = false;
+            return;
+        }
+
+        self.buffered_frames.last_time += per_frame;
+        let popped = self.buffered_frames.frames.pop_front().expect("should have at least one frame");
+        self.callbacks.refresh_screens(&popped);
     }
 
     fn get_current_rom_name_arc(&self) -> Option<Arc<UTF8CString>> {
@@ -1205,6 +1280,19 @@ impl SuperShuckieFrontend {
             self.core_metadata.emulator_type = Some(expected);
             self.reload_rom_in_place();
         }
+    }
+
+    #[inline]
+    pub fn set_frame_rate_stabilization(&mut self, setting: usize) {
+        self.settings.emulation.frame_rate_stabilization = setting;
+        if self.is_game_running() {
+            self.buffered_frames = BufferedFrames::new(setting, self.buffered_frames.core_target_frame_time);
+        }
+    }
+
+    #[inline]
+    pub fn get_frame_rate_stabilization(&self) -> usize {
+        self.settings.emulation.frame_rate_stabilization
     }
 
     fn choose_for_game_boy(&self, data: &[u8]) -> SuperShuckieEmulatorType {

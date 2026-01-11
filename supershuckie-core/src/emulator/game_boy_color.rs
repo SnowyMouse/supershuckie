@@ -10,8 +10,11 @@ use safeboy::rgb_encoder::encode_a8r8g8b8;
 use safeboy::{BorderMode, DirectAccessRegion, Gameboy, GameboyCallbacks, InputButton, RtcMode, RunnableInstanceFunctions, RunningGameboy, TurboMode, VBlankType};
 pub use safeboy::Model;
 use spin::Lazy;
-use supershuckie_replay_recorder::blake3_hash;
+use supershuckie_replay_recorder::{blake3_hash, TimestampMicros};
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash};
+
+// ~59.7 Hz
+const DEFAULT_MICROSECONDS_PER_FRAME: TimestampMicros = 16742;
 
 /// Game Boy and Game Boy Color emulator.
 ///
@@ -124,9 +127,13 @@ impl EmulatorCore for GameBoyColor {
 
     fn run_unlocked(&mut self) -> RunTime {
         self.core.set_turbo_mode(TurboMode::Enabled);
-        let timing = self.run();
-        self.core.set_turbo_mode(self.turbo_mode);
-        timing
+        loop {
+            let timing = self.run();
+            if timing.frames >= 1 {
+                self.core.set_turbo_mode(self.turbo_mode);
+                return timing
+            }
+        }
     }
 
     fn read_ram(&self, address: u32, into: &mut [u8]) -> Result<(), &'static str> {
@@ -256,6 +263,10 @@ impl EmulatorCore for GameBoyColor {
         else {
             safeboy::GB_VERSION
         }
+    }
+
+    fn target_frame_time(&self) -> TimestampMicros {
+        DEFAULT_MICROSECONDS_PER_FRAME
     }
 }
 

@@ -190,4 +190,8 @@ impl EmulatorCore for NintendoDS {
     fn core_name(&self) -> &'static str {
         "melonDS 1.1 [SUPERSHUCKIE-EXPERIMENTAL-0]"
     }
+
+    fn target_frame_time(&self) -> TimestampMicros {
+        DEFAULT_MICROSECONDS_PER_FRAME
+    }
 }

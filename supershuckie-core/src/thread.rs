@@ -5,13 +5,13 @@ use std::borrow::ToOwned;
 use std::boxed::Box;
 use std::fs::File;
 use std::string::String;
-use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicU16, AtomicU32, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex, TryLockError, Weak};
 use std::time::Duration;
 use std::vec::Vec;
 use std::format;
-
+use std::num::NonZeroU16;
 #[cfg(feature = "pokeabyte")]
 use supershuckie_pokeabyte_integration::PokeAByteIntegrationServer;
 use supershuckie_replay_recorder::replay_file::playback::ReplayFilePlayer;
@@ -24,6 +24,7 @@ pub struct ThreadedSuperShuckieCore {
     sender: Sender<ThreadCommand>,
     receiver_close: Receiver<()>,
 
+    current_speed: Arc<AtomicU16>,
     frame_count: Arc<AtomicU32>,
     elapsed_milliseconds: Arc<AtomicU32>,
     desired_replay_frame: Arc<AtomicU32>,
@@ -49,6 +50,7 @@ impl ThreadedSuperShuckieCore {
         let desired_replay_frame = Arc::new(AtomicU32::new(u32::MAX));
         let delta_replay_frames = Arc::new(AtomicI32::new(0));
         let replay_errors = Arc::new(Mutex::new(Vec::new()));
+        let current_speed = Arc::new(AtomicU16::new(Speed::default().speed_over_256.get()));
 
         {
             let frame_count = frame_count.clone();
@@ -57,6 +59,7 @@ impl ThreadedSuperShuckieCore {
             let desired_replay_frame = desired_replay_frame.clone();
             let delta_replay_frames = delta_replay_frames.clone();
             let replay_errors = replay_errors.clone();
+            let current_speed = current_speed.clone();
             let _ = std::thread::Builder::new().name("ThreadedSuperShuckieCore".to_owned()).spawn(move || {
                 ThreadedSuperShuckieCoreThread {
                     screens,
@@ -73,6 +76,7 @@ impl ThreadedSuperShuckieCore {
                     delta_replay_frames,
                     replay_errors,
                     playback_frozen: false,
+                    current_speed,
                 }.run_thread();
             });
         }
@@ -86,6 +90,7 @@ impl ThreadedSuperShuckieCore {
             playback_total_frames,
             playback_total_milliseconds,
             replay_errors,
+            current_speed,
             playback: false,
             desired_replay_frame,
             delta_replay_frames
@@ -290,6 +295,12 @@ impl ThreadedSuperShuckieCore {
         self.replay_errors.clear_poison();
         core::mem::take(&mut *self.replay_errors.lock().expect("get_replay_recording_errors fainted due to poison"))
     }
+
+    /// Get the current speed setting.
+    #[inline]
+    pub fn get_current_speed(&self) -> Speed {
+        Speed { speed_over_256: NonZeroU16::new(self.current_speed.load(Ordering::Relaxed)).expect("get_current_speed with zero speed") }
+    }
 }
 
 impl Drop for ThreadedSuperShuckieCore {
@@ -338,6 +349,7 @@ struct ThreadedSuperShuckieCoreThread {
     delta_replay_frames: Arc<AtomicI32>,
     replay_errors: Arc<Mutex<Vec<ReplayFileWriteError>>>,
     playback_frozen: bool,
+    current_speed: Arc<AtomicU16>,
 
     core: SuperShuckieCore,
     receiver: Receiver<ThreadCommand>,
@@ -364,6 +376,7 @@ impl ThreadedSuperShuckieCoreThread {
             self.update_queued_screens();
             self.handle_pokeabyte_integration();
             self.replay_milliseconds.store(self.core.get_recording_milliseconds() as u32, Ordering::Relaxed);
+            self.current_speed.store(self.core.game_speed.speed_over_256.get(), Ordering::Relaxed);
 
             if self.is_running {
                 if !self.playback_frozen {

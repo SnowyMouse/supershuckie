@@ -194,4 +194,8 @@ impl EmulatorCore for GameBoyAdvance {
     fn core_name(&self) -> &'static str {
         "mGBA 0.10.5-76d93515629031047ca2b7bcb6237089adcb36d7 with BIOS skipped"
     }
+
+    fn target_frame_time(&self) -> TimestampMicros {
+        DEFAULT_MICROSECONDS_PER_FRAME
+    }
 }

@@ -209,6 +209,11 @@ impl SuperShuckieCore {
         self.with_recorder(|r| r.set_speed(speed));
     }
 
+    /// Get the speed multiplier of the game.
+    pub fn get_speed(&self) -> Speed {
+        self.game_speed
+    }
+
     fn handle_replay(&mut self) {
         if self.replay_stalled {
             return

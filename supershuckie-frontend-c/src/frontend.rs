@@ -739,6 +739,16 @@ pub extern "C" fn supershuckie_frontend_set_nds_jit(frontend: &mut SuperShuckieF
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_get_fps_stabilization(frontend: &SuperShuckieFrontend) -> usize {
+    frontend.get_frame_rate_stabilization()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_set_fps_stabilization(frontend: &mut SuperShuckieFrontend, setting: usize) {
+    frontend.set_frame_rate_stabilization(setting)
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn supershuckie_frontend_get_recent_roms(frontend: &SuperShuckieFrontend) -> *mut SuperShuckieStringArray {
     Box::into_raw(Box::new(SuperShuckieStringArray(frontend.get_recent_roms())))
 }

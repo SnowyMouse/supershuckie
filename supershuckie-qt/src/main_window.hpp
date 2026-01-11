@@ -109,6 +109,8 @@ private:
     QMenu *game_boy_settings;
     NumberedAction *gbc_mode[3];
 
+    NumberedAction *fps_stabilization[16];
+
     QLabel *current_state;
     QLabel *paused_state;
 
@@ -175,6 +177,8 @@ private:
     QString app_dir;
 
     SDLEventWrapper sdl;
+
+    void set_fps_stabilization(std::uint8_t setting);
 
 private slots:
     void do_open_rom();

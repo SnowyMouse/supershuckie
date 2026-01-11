@@ -179,13 +179,17 @@ pub struct EmulationSettings {
     pub turbo_speed_multiplier: f64,
 
     #[serde(default = "EmulationSettings::DEFAULT_MAX_SAVE_STATE_HISTORY")]
-    pub max_save_state_history: NonZeroUsize
+    pub max_save_state_history: NonZeroUsize,
+
+    #[serde(default = "EmulationSettings::DEFAULT_FRAME_RATE_STABILIZATION")]
+    pub frame_rate_stabilization: usize
 }
 
 impl EmulationSettings {
     const DEFAULT_BASE_SPEED_MULTIPLIER: fn() -> f64 = || 1.0;
     const DEFAULT_TURBO_SPEED_MULTIPLIER: fn() -> f64 = || 2.0;
     const DEFAULT_MAX_SAVE_STATE_HISTORY: fn() -> NonZeroUsize = || unsafe { NonZeroUsize::new_unchecked(100) };
+    const DEFAULT_FRAME_RATE_STABILIZATION: fn() -> usize = || 0;
 }
 
 impl Default for EmulationSettings {
@@ -193,7 +197,8 @@ impl Default for EmulationSettings {
         Self {
             base_speed_multiplier: EmulationSettings::DEFAULT_BASE_SPEED_MULTIPLIER(),
             turbo_speed_multiplier: EmulationSettings::DEFAULT_TURBO_SPEED_MULTIPLIER(),
-            max_save_state_history: EmulationSettings::DEFAULT_MAX_SAVE_STATE_HISTORY()
+            max_save_state_history: EmulationSettings::DEFAULT_MAX_SAVE_STATE_HISTORY(),
+            frame_rate_stabilization: EmulationSettings::DEFAULT_FRAME_RATE_STABILIZATION()
         }
     }
 }

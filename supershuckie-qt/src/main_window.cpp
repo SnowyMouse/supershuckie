@@ -584,6 +584,17 @@ void MainWindow::set_up_settings_menu() {
         action->setCheckable(true);
     }
 
+    auto *fps_stabilization = this->settings_menu->addMenu("Frame rate stabilization");
+    std::size_t fps_stabilization_setting = 0;
+    for(NumberedAction *&s : this->fps_stabilization) {
+        char fmt[256];
+        std::snprintf(fmt, sizeof(fmt), "%zu frames", fps_stabilization_setting);
+        s = new NumberedAction(this, fmt, static_cast<std::uint8_t>(fps_stabilization_setting), &MainWindow::set_fps_stabilization);
+        fps_stabilization->addAction(s);
+        fps_stabilization_setting += 2;
+        s->setCheckable(true);
+    }
+
     this->settings_menu->addSeparator();
 
     this->game_boy_settings = this->settings_menu->addMenu("Game Boy settings");
@@ -664,6 +675,11 @@ void MainWindow::refresh_action_states() {
     auto gbc_mode = this->frontend != nullptr ? supershuckie_frontend_get_gbc_mode(this->frontend) : 0;
     for(auto &i : this->gbc_mode) {
         i->setChecked(i->number == gbc_mode);
+    }
+
+    auto fps_stabilization = this->frontend != nullptr ? supershuckie_frontend_get_fps_stabilization(this->frontend) : 0;
+    for(auto &i : this->fps_stabilization) {
+        i->setChecked(i->number == fps_stabilization);
     }
 
     switch(replay_state) {
@@ -1046,6 +1062,11 @@ void MainWindow::do_toggle_sgb() {
 
 void MainWindow::set_gbc_mode(std::uint8_t mode) {
     supershuckie_frontend_set_gbc_mode(this->frontend, mode);
+    this->refresh_action_states();
+}
+
+void MainWindow::set_fps_stabilization(std::uint8_t setting) {
+    supershuckie_frontend_set_fps_stabilization(this->frontend, setting);
     this->refresh_action_states();
 }
 
