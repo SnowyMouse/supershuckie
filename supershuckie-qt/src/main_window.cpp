@@ -1035,7 +1035,10 @@ void MainWindow::do_toggle_auto_pause_on_record() {
 }
 
 void MainWindow::do_open_user_dir() {
-    QDesktopServices::openUrl(QUrl::fromLocalFile(this->app_dir));
+    std::size_t buffer_len = supershuckie_frontend_get_current_data_directory(this->frontend, nullptr, 0);
+    std::vector<char> buffer = std::vector(buffer_len, '\x00');
+    supershuckie_frontend_get_current_data_directory(this->frontend, buffer.data(), buffer.size());
+    QDesktopServices::openUrl(QUrl::fromLocalFile(buffer.data()));
 }
 
 void MainWindow::do_change_playback_time(int frames) {

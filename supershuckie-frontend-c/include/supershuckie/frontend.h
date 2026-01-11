@@ -534,6 +534,14 @@ struct SuperShuckieStringArrayRaw *supershuckie_frontend_get_recent_roms(const s
 struct SuperShuckieStringArrayRaw *supershuckie_frontend_clear_recent_roms(struct SuperShuckieFrontendRaw *frontend);
 
 /**
+ * Get the current data directory, returning the length.
+ *
+ * Safety:
+ * - `dir` must be valid for at least `dir_len` bytes, only being null if dir_len is 0.
+ */
+size_t supershuckie_frontend_get_current_data_directory(const struct SuperShuckieFrontendRaw *frontend, char *dir, size_t dir_len);
+
+/**
  * Free the core
  *
  * Safety:

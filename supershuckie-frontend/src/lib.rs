@@ -564,6 +564,17 @@ impl SuperShuckieFrontend {
         self.user_dir.join(format!("{filename}-data"))
     }
 
+    #[inline]
+    pub fn get_user_dir(&self) -> UTF8CString {
+        self.user_dir.to_str().expect("path is not UTF-8").into()
+    }
+
+    #[inline]
+    pub fn get_dir_for_current_rom(&self) -> Option<UTF8CString> {
+        self.get_current_rom_name()
+            .map(|rom| self.get_userdir_for_rom(rom).to_str().expect("rom path is not UTF-8").into())
+    }
+
     fn reload_rom_in_place(&mut self) {
         let emulator_type = self.core_metadata.emulator_type.expect("reload_rom_in_place with no emulator type");
         self.instantiate_and_load_core(emulator_type);

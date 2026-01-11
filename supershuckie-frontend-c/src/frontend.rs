@@ -622,7 +622,7 @@ pub extern "C" fn supershuckie_frontend_get_connected_controllers(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn supershuckie_frontend_connect_controller(
     frontend: &mut SuperShuckieFrontend,
-    controller: *mut c_char
+    controller: *const c_char
 ) -> ConnectedControllerIndex {
     let controller_name = unsafe { CStr::from_ptr(controller).to_str().expect("controller name not UTF-8") };
     frontend.connect_controller(controller_name)
@@ -746,4 +746,21 @@ pub extern "C" fn supershuckie_frontend_get_recent_roms(frontend: &SuperShuckieF
 #[unsafe(no_mangle)]
 pub extern "C" fn supershuckie_frontend_clear_recent_roms(frontend: &mut SuperShuckieFrontend) {
     frontend.clear_recent_roms()
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn supershuckie_frontend_get_current_data_directory(
+    frontend: &SuperShuckieFrontend,
+    dir: *mut u8,
+    dir_len: usize
+) -> usize {
+    let path = frontend.get_dir_for_current_rom().unwrap_or_else(|| frontend.get_user_dir());
+    let path_bytes = path.as_c_str().to_bytes_with_nul();
+    let path_bytes_len = path_bytes.len();
+
+    if dir_len >= path_bytes_len {
+        unsafe { from_raw_parts_mut(dir, path_bytes_len) }.copy_from_slice(path_bytes)
+    }
+
+    path_bytes_len
 }
