@@ -704,7 +704,13 @@ void MainWindow::refresh_action_states() {
 void MainWindow::do_open_rom() {
     QFileDialog rom_opener;
     rom_opener.setFileMode(QFileDialog::FileMode::ExistingFile);
-    rom_opener.setNameFilters(QStringList({"GB/GBC ROM dumps (*.gb *.gbc)", "Any files (*)"}));
+    rom_opener.setNameFilters(QStringList({
+        "All compatible ROM files (*.gb *.gbc *.gba *.nds)",
+        "GB/GBC ROM dumps (*.gb *.gbc)",
+        "GBA ROM dumps (*.gba)",
+        "NDS ROM files (*.nds)",
+        "Any files (*)"
+    }));
     rom_opener.setWindowTitle("Select a ROM to open");
     rom_opener.exec();
 
