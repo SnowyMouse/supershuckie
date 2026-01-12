@@ -764,3 +764,10 @@ pub unsafe extern "C" fn supershuckie_frontend_get_current_data_directory(
 
     path_bytes_len
 }
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn supershuckie_frontend_reload_core(
+    frontend: &mut SuperShuckieFrontend
+) {
+    frontend.reload_core();
+}

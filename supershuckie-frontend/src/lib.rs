@@ -493,7 +493,7 @@ impl SuperShuckieFrontend {
         self.rom_name = Some(Arc::new(UTF8CString::from_str(filename)));
         self.core_metadata.emulator_type = Some(emulator_to_use);
         self.save_file = Some(Arc::new(self.get_current_save_file_name_for_rom(filename)));
-        self.reload_rom_in_place();
+        self.reload_core();
 
         let path_cstr = UTF8CString::from_str(path_utf8);
         self.settings.recent_roms.recent_roms.retain(|i| i != &path_cstr);
@@ -575,7 +575,8 @@ impl SuperShuckieFrontend {
             .map(|rom| self.get_userdir_for_rom(rom).to_str().expect("rom path is not UTF-8").into())
     }
 
-    fn reload_rom_in_place(&mut self) {
+    #[inline]
+    pub fn reload_core(&mut self) {
         let emulator_type = self.core_metadata.emulator_type.expect("reload_rom_in_place with no emulator type");
         self.instantiate_and_load_core(emulator_type);
     }
@@ -815,7 +816,7 @@ impl SuperShuckieFrontend {
 
             self.core.pause();
             let state = self.core.create_save_state().expect("failed to make save state?");
-            self.reload_rom_in_place();
+            self.reload_core();
             self.core.load_save_state(state);
         }
 
@@ -841,7 +842,7 @@ impl SuperShuckieFrontend {
             self.delete_save_file_data(rom_name.as_str(), save_file);
         }
 
-        self.reload_rom_in_place();
+        self.reload_core();
     }
 
     /// Set the current save file.
@@ -1214,7 +1215,7 @@ impl SuperShuckieFrontend {
 
         if expected != current {
             self.core_metadata.emulator_type = Some(expected);
-            self.reload_rom_in_place();
+            self.reload_core();
         }
     }
 

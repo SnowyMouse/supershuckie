@@ -412,6 +412,9 @@ void MainWindow::set_up_gameplay_menu() {
     this->reset_console = this->gameplay_menu->addAction("Reset console");
     connect(this->reset_console, SIGNAL(triggered()), this, SLOT(do_reset_console()));
 
+    this->reload_core = this->gameplay_menu->addAction("Reload core");
+    connect(this->reload_core, SIGNAL(triggered()), this, SLOT(do_reload_core()));
+
     this->pause = this->gameplay_menu->addAction("Pause");
     this->pause->setCheckable(true);
     this->pause->setShortcut(QKeyCombination(Qt::ControlModifier, Qt::Key_P));
@@ -599,7 +602,7 @@ void MainWindow::set_up_settings_menu() {
         gbc_mode_items->addAction(m);
     }
 
-    this->sgb_enabled = this->game_boy_settings->addAction("Enable SGB colors (experimental)");
+    this->sgb_enabled = this->game_boy_settings->addAction("Enable SGB colors");
     connect(this->sgb_enabled, SIGNAL(triggered()), this, SLOT(do_toggle_sgb()));
     this->sgb_enabled->setCheckable(true);
 
@@ -653,6 +656,9 @@ void MainWindow::refresh_action_states() {
     this->resume_replay->setEnabled(game_loaded);
     this->game_boy_settings->setEnabled(true);
 
+    this->reload_core->setEnabled(game_loaded);
+    this->reset_console->setEnabled(game_loaded);
+
     for(auto &scale : this->change_video_scale) {
         scale->setEnabled(game_loaded);
     }
@@ -670,6 +676,7 @@ void MainWindow::refresh_action_states() {
         case SuperShuckieReplayState::SuperShuckieReplayState__Recording:
             this->play_replay->setEnabled(false);
             this->resume_replay->setEnabled(false);
+            this->reload_core->setEnabled(false);
             this->current_state->setText("RECORDING");
             this->current_state->show();
             this->record_replay->setText("Stop recording replay");
@@ -679,6 +686,8 @@ void MainWindow::refresh_action_states() {
         case SuperShuckieReplayState::SuperShuckieReplayState__Playback:
             this->record_replay->setEnabled(false);
             this->resume_replay->setEnabled(false);
+            this->reload_core->setEnabled(false);
+            this->reset_console->setEnabled(false);
             this->current_state->setText("PLAYBACK");
             this->current_state->show();
 
@@ -1096,4 +1105,8 @@ void MainWindow::rebuild_recent_roms_menu() noexcept {
 void MainWindow::do_clear_recent_roms() {
     supershuckie_frontend_clear_recent_roms(this->frontend);
     this->rebuild_recent_roms_menu();
+}
+
+void MainWindow::do_reload_core() {
+    supershuckie_frontend_reload_core(this->frontend);
 }

@@ -542,6 +542,13 @@ struct SuperShuckieStringArrayRaw *supershuckie_frontend_clear_recent_roms(struc
 size_t supershuckie_frontend_get_current_data_directory(const struct SuperShuckieFrontendRaw *frontend, char *dir, size_t dir_len);
 
 /**
+ * Reload the current core.
+ *
+ * This will end any replay and automatically save the current game.
+ */
+void supershuckie_frontend_reload_core(struct SuperShuckieFrontendRaw *frontend);
+
+/**
  * Free the core
  *
  * Safety:

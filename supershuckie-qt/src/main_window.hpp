@@ -92,6 +92,7 @@ private:
     QAction *save_game;
     QAction *save_new_game;
     QAction *reset_console;
+    QAction *reload_core;
     QAction *pause;
     QAction *quit;
 
@@ -207,6 +208,7 @@ private slots:
     void do_toggle_horizontal_nds();
     void do_toggle_nds_jit();
     void do_clear_recent_roms();
+    void do_reload_core();
 };
 
 class NumberedAction: public QAction {
