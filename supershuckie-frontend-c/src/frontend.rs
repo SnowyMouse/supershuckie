@@ -4,7 +4,7 @@ use std::num::NonZeroU8;
 use std::ptr::null;
 use std::slice::from_raw_parts_mut;
 use supershuckie_core::emulator::{ScreenData, ScreenDataEncoding};
-use supershuckie_frontend::{ConnectedControllerIndex, SuperShuckieEmulatorType, SuperShuckieFrontend, SuperShuckieFrontendCallbacks, UserInput};
+use supershuckie_frontend::{ConnectedControllerIndex, SuperShuckieEmulatorType, SuperShuckieFrontend, SuperShuckieFrontendCallbacks, SuperShuckieReplayState, UserInput};
 use supershuckie_frontend::settings::{GameBoyMode, NintendoDSDate};
 use supershuckie_frontend::util::UTF8CString;
 use crate::control_settings::SuperShuckieControlSettings;
@@ -340,6 +340,24 @@ pub unsafe extern "C" fn supershuckie_frontend_is_pokeabyte_enabled(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn supershuckie_frontend_get_external_commands_enabled(
+    frontend: &mut SuperShuckieFrontend,
+    error: *mut u8,
+    error_len: usize
+) -> bool {
+    match frontend.get_external_commands_enabled() {
+        Ok(n) => {
+            unsafe { *error = 0 };
+            n
+        },
+        Err(e) => {
+            write_str_to_data(e.as_str(), unsafe { from_raw_parts_mut(error, error_len) });
+            false
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn supershuckie_frontend_is_paused(
     frontend: &SuperShuckieFrontend
 ) -> bool {
@@ -354,6 +372,22 @@ pub unsafe extern "C" fn supershuckie_frontend_set_pokeabyte_enabled(
     error_len: usize
 ) -> bool {
     match frontend.set_pokeabyte_enabled(enabled) {
+        Ok(_) => true,
+        Err(e) => {
+            write_str_to_data(e.as_str(), unsafe { from_raw_parts_mut(error, error_len) });
+            false
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn supershuckie_frontend_set_external_commands_enabled(
+    frontend: &mut SuperShuckieFrontend,
+    enabled: bool,
+    error: *mut u8,
+    error_len: usize
+) -> bool {
+    match frontend.set_external_commands_enabled(enabled) {
         Ok(_) => true,
         Err(e) => {
             write_str_to_data(e.as_str(), unsafe { from_raw_parts_mut(error, error_len) });
@@ -672,26 +706,11 @@ pub extern "C" fn supershuckie_frontend_set_playback_frozen(
     frontend.set_playback_frozen(paused)
 }
 
-#[repr(C)]
-pub enum SuperShuckieReplayState {
-    NoReplay,
-    Recording,
-    Playback
-}
-
 #[unsafe(no_mangle)]
 pub extern "C" fn supershuckie_frontend_get_replay_state(
     frontend: &SuperShuckieFrontend
 ) -> SuperShuckieReplayState {
-    if frontend.get_replay_playback_stats().is_some() {
-        SuperShuckieReplayState::Playback
-    }
-    else if frontend.get_replay_file_info().is_some() {
-        SuperShuckieReplayState::Recording
-    }
-    else {
-        SuperShuckieReplayState::NoReplay
-    }
+    frontend.get_replay_state()
 }
 
 #[unsafe(no_mangle)]

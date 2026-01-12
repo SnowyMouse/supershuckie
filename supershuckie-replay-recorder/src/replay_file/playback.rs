@@ -215,18 +215,18 @@ impl ReplayFilePlayer {
                     }
 
                     total_frame_count = *elapsed_frames_end;
-                    total_millis = *timestamp_end;
+                    total_millis = timestamp_end.0;
                 },
                 Packet::Keyframe { metadata, .. } => {
                     add_keyframe!(metadata);
                 },
                 Packet::NextFrame { timestamp_delta } => {
                     total_frame_count += 1;
-                    total_millis += timestamp_delta;
+                    total_millis += timestamp_delta.0;
                 }
                 Packet::Bookmark { metadata } => {
                     add_bookmark!(metadata);
-                    total_millis = metadata.elapsed_millis;
+                    total_millis = metadata.elapsed_millis.0;
                 },
                 _ => {}
             }
@@ -248,7 +248,7 @@ impl ReplayFilePlayer {
             compressed_blobs_decompressing: compressed_blobs,
             compressed_blobs_finished,
             total_frame_count,
-            total_millis,
+            total_millis: TimestampMillis(total_millis),
             cleanup_enabled: true,
 
             #[cfg(feature = "std")]
@@ -264,7 +264,7 @@ impl ReplayFilePlayer {
     }
 
     /// Get the total milliseconds of the replay.
-    pub fn get_total_milliseconds(&self) -> UnsignedInteger {
+    pub fn get_total_milliseconds(&self) -> TimestampMillis {
         self.total_millis
     }
 

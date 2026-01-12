@@ -15,9 +15,10 @@ use std::sync::Arc;
 use std::io::BufWriter;
 use num_enum::TryFromPrimitive;
 use supershuckie_core::emulator::{EmulatorCore, GameBoyColor, Input, Model, PartialReplayRecordMetadata, ScreenData, NullEmulatorCore, NintendoDS, GameBoyAdvance};
-use supershuckie_core::{std_timestamp_provider, ReplayPlayerAttachError, Speed, SuperShuckieRapidFire, ThreadedSuperShuckieCore};
+use supershuckie_core::{std_timestamp_provider, ElapsedTimeStats, ReplayPlayerAttachError, Speed, SuperShuckieRapidFire, ThreadedSuperShuckieCore};
+use supershuckie_frontend_webserver::{Stats, SuperShuckieServerCommand, SuperShuckieWebserver};
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash, ReplayPatchFormat};
-use supershuckie_replay_recorder::ByteVec;
+use supershuckie_replay_recorder::{ByteVec, TimestampMillis, UnsignedInteger};
 use supershuckie_replay_recorder::replay_file::playback::ReplayFilePlayer;
 use supershuckie_replay_recorder::replay_file::record::ReplayFileRecorderSettings;
 
@@ -96,7 +97,6 @@ pub struct SuperShuckieFrontend {
 
     user_dir: PathBuf,
     config_dir: PathBuf,
-    frame_count: u32,
     pokeabyte_error: Option<UTF8CString>,
 
     loaded_rom_data: Option<Vec<u8>>,
@@ -107,11 +107,18 @@ pub struct SuperShuckieFrontend {
     current_save_state_history: Vec<Vec<u8>>,
     current_save_state_history_position: usize,
 
+    web_server: Option<SuperShuckieWebserver>,
+    external_commands_error: Option<UTF8CString>,
+
     connected_controllers: BTreeMap<ConnectedControllerIndex, UTF8CString>,
 
     rom_name: Option<Arc<UTF8CString>>,
     save_file: Option<Arc<UTF8CString>>,
     recording_replay_file: Option<ReplayFileInfo>,
+
+    last_read_elapsed_time_stats: ElapsedTimeStats,
+    last_read_replay_start: Option<(UnsignedInteger, TimestampMillis)>,
+    last_read_replay_end: Option<(UnsignedInteger, TimestampMillis)>,
 
     paused: bool,
 
@@ -135,23 +142,31 @@ impl SuperShuckieFrontend {
             rom_name: None,
             save_file: None,
             loaded_rom_data: None,
-            frame_count: 0,
             current_rapid_fire_input: None,
             current_toggled_input: None,
             callbacks,
             settings,
             current_input: Input::default(),
             current_save_state_history: Vec::new(),
+            last_read_elapsed_time_stats: ElapsedTimeStats::default(),
             current_save_state_history_position: 0,
             recording_replay_file: None,
             pokeabyte_error: None,
             paused: false,
             config_dir: config_dir.as_ref().to_owned(),
-            connected_controllers: BTreeMap::new()
+            web_server: None,
+            external_commands_error: None,
+            connected_controllers: BTreeMap::new(),
+            last_read_replay_start: Default::default(),
+            last_read_replay_end: Default::default(),
         };
 
-        s.unload_rom();
+        // This is not tied to the core, so we want to immediately enable this.
+        if s.settings.external_commands.enabled {
+            let _ = s.set_external_commands_enabled(true);
+        }
 
+        s.unload_rom();
         s
     }
 
@@ -207,6 +222,28 @@ impl SuperShuckieFrontend {
     /// Get the name of the connected controller as a C string.
     pub fn name_of_controller_c_str(&self, controller: ConnectedControllerIndex) -> Option<&CStr> {
         self.connected_controllers.get(&controller).map(|i| i.as_c_str())
+    }
+
+    /// Mark the start of a replay.
+    pub fn mark_replay_start(&mut self) -> Result<(), ()> {
+        if let Ok(n) = self.core.mark_start() {
+            self.last_read_replay_start = Some(n);
+            Ok(())
+        }
+        else {
+            Err(())
+        }
+    }
+
+    /// Mark the end of a replay.
+    pub fn mark_replay_end(&mut self) -> Result<(), ()> {
+        if let Ok(n) = self.core.mark_end() {
+            self.last_read_replay_end = Some(n);
+            Ok(())
+        }
+        else {
+            Err(())
+        }
     }
 
     fn load_file_or_make_generic(&mut self, dir: &Path, name: Option<&str>, generic_prefix: Option<&str>, extension: &str) -> Result<(File, String, PathBuf), UTF8CString> {
@@ -302,6 +339,9 @@ impl SuperShuckieFrontend {
             _ => current_emulator_type
         };
 
+        self.last_read_replay_start = metadata.crop_start;
+        self.last_read_replay_end = metadata.crop_end;
+
         if current_emulator_type != expected_type {
             self.instantiate_and_load_core(expected_type);
         }
@@ -334,6 +374,8 @@ impl SuperShuckieFrontend {
     /// Stop playing back any currently playing replay.
     #[inline]
     pub fn stop_replay_playback(&mut self) {
+        self.last_read_replay_start = None;
+        self.last_read_replay_end = None;
         self.core.detach_replay_player();
         self.reset_speed();
         self.current_input = Input::default();
@@ -948,6 +990,58 @@ impl SuperShuckieFrontend {
             }
         }
 
+        if let Some(mut s) = self.web_server.take() {
+            fn make_stats(what: &SuperShuckieFrontend) -> Stats {
+                let replay_state = what.get_replay_state();
+
+                // use cached to avoid DoSing the emulator lol
+                let stats = what.last_read_elapsed_time_stats;
+
+                let timer_start = what.last_read_replay_start.map(|n| n.1.0 as u32);
+                let timer_end = what.last_read_replay_end.map(|n| n.1.0 as u32);
+
+                let timer_current = if let Some(start) = timer_start {
+                    let value = stats.milliseconds.saturating_sub(start);
+
+                    if let Some(end) = timer_end {
+                        Some(value.min(end.saturating_sub(start)))
+                    }
+                    else {
+                        Some(value)
+                    }
+                }
+                else {
+                    None
+                };
+
+                Stats {
+                    time_start: timer_start,
+                    time_end: timer_end,
+                    time_current: timer_current,
+                    total_elapsed_time: stats.milliseconds,
+                    total_elapsed_frames: stats.frames,
+                    is_playing_back: replay_state == SuperShuckieReplayState::Playback,
+                    is_recording: replay_state == SuperShuckieReplayState::Recording,
+                    current_speed: stats.speed.into_multiplier_float()
+                }
+            }
+
+            while let Some(s) = s.next_server_command() {
+                match s {
+                    SuperShuckieServerCommand::Stats(t) => {
+                        let _ = t.send(make_stats(self));
+                    }
+                    SuperShuckieServerCommand::MarkStart(t) => {
+                        let _ = t.send(self.mark_replay_start().is_ok());
+                    }
+                    SuperShuckieServerCommand::MarkEnd(t) => {
+                        let _ = t.send(self.mark_replay_end().is_ok());
+                    }
+                }
+            }
+
+            self.web_server = Some(s);
+        }
 
         if errors.is_empty() {
             Ok(())
@@ -958,12 +1052,12 @@ impl SuperShuckieFrontend {
     }
 
     fn refresh_screen(&mut self, force: bool) {
-        let current_frame_count = self.core.get_elapsed_frames();
-        if force || current_frame_count == self.frame_count {
+        let current_stats = self.core.get_elapsed_time();
+        if force || current_stats.frames == self.last_read_elapsed_time_stats.frames {
             return
         }
 
-        self.frame_count = current_frame_count;
+        self.last_read_elapsed_time_stats = current_stats;
         self.core.read_screens(|screens| {
             self.callbacks.refresh_screens(screens);
         })
@@ -1032,13 +1126,13 @@ impl SuperShuckieFrontend {
     /// Get the number of milliseconds elapsed.
     #[inline]
     pub fn get_elapsed_milliseconds(&self) -> u32 {
-        self.core.get_elapsed_milliseconds()
+        self.last_read_elapsed_time_stats.milliseconds
     }
 
     /// Get the number of milliseconds elapsed.
     #[inline]
     pub fn get_elapsed_frames(&self) -> u32 {
-        self.core.get_elapsed_frames()
+        self.last_read_elapsed_time_stats.frames
     }
 
     /// Skip to the desired frame.
@@ -1085,6 +1179,9 @@ impl SuperShuckieFrontend {
         if self.settings.replay.auto_pause_on_record {
             self.set_paused(true);
         }
+
+        self.last_read_replay_start = None;
+        self.last_read_replay_end = None;
 
         self.core.start_recording_replay(PartialReplayRecordMetadata {
             rom_name: current_rom_name.to_string(),
@@ -1141,7 +1238,10 @@ impl SuperShuckieFrontend {
         };
 
         // FIXME: We should make sure that it actually finalized here before deleting the temp file.
-        let zero_frames = self.core.get_elapsed_frames() == 0;
+        let zero_frames = self.core.get_elapsed_time().frames == 0;
+
+        self.last_read_replay_start = None;
+        self.last_read_replay_end = None;
 
         self.core.stop_recording_replay();
         let _ = std::fs::remove_file(&replay_file.temp_replay_path);
@@ -1241,6 +1341,50 @@ impl SuperShuckieFrontend {
         }
     }
 
+    /// Returns true if external commands are enabled, false if not, or an error if there was an error starting it.
+    pub fn get_external_commands_enabled(&self) -> Result<bool, &UTF8CString> {
+        match self.external_commands_error.as_ref() {
+            Some(e) => Err(e),
+            None => Ok(self.settings.external_commands.enabled)
+        }
+    }
+
+    /// Set whether or not external commands are enabled, returning an error if there was an error starting it.
+    pub fn set_external_commands_enabled(&mut self, enabled: bool) -> Result<(), &UTF8CString> {
+        self.settings.external_commands.enabled = enabled;
+        self.external_commands_error = None;
+        if !enabled {
+            self.web_server = None;
+            return Ok(())
+        }
+        if self.web_server.is_some() {
+            return Ok(())
+        }
+        match SuperShuckieWebserver::new("127.0.0.1:30158") {
+            Ok(n) => {
+                self.web_server = Some(n);
+                Ok(())
+            },
+            Err(e) => {
+                self.external_commands_error = Some(e.into());
+                Err(self.external_commands_error.as_ref().expect("??? we just set it"))
+            }
+        }
+    }
+
+    #[inline]
+    pub fn get_replay_state(&self) -> SuperShuckieReplayState {
+        if self.get_replay_playback_stats().is_some() {
+            SuperShuckieReplayState::Playback
+        }
+        else if self.get_replay_file_info().is_some() {
+            SuperShuckieReplayState::Recording
+        }
+        else {
+            SuperShuckieReplayState::NoReplay
+        }
+    }
+
     #[inline]
     pub fn get_gbc_mode(&self) -> GameBoyMode {
         self.settings.game_boy_settings.gbc_mode
@@ -1305,6 +1449,14 @@ impl SuperShuckieFrontend {
             },
         }
     }
+}
+
+#[derive(Copy, Clone, PartialEq)]
+#[repr(C)]
+pub enum SuperShuckieReplayState {
+    NoReplay,
+    Recording,
+    Playback
 }
 
 fn list_files_in_dir_with_extension(dir: &Path, extension: &str) -> Vec<UTF8CString> {

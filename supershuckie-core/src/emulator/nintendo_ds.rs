@@ -3,10 +3,10 @@ use crate::emulator::{EmulatorCore, Input, RunTime, ScreenData, ScreenDataEncodi
 use alloc::string::String;
 use alloc::borrow::ToOwned;
 use melonds_rs::Core;
-use supershuckie_replay_recorder::{blake3_hash, TimestampMicros};
+use supershuckie_replay_recorder::blake3_hash;
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash};
 use alloc::boxed::Box;
-use crate::MonotonicTimestampProvider;
+use crate::{MonotonicTimestampProvider, TimestampMicros};
 
 /// A NDS emulator.
 ///

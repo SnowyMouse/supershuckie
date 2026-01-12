@@ -147,7 +147,6 @@ MainWindow::MainWindow(): QMainWindow() {
 
     this->ticker.setInterval(1);
     this->ticker.callOnTimeout(this, &MainWindow::tick);
-    this->ticker.start();
 
     this->set_up_menu();
 
@@ -185,6 +184,12 @@ MainWindow::MainWindow(): QMainWindow() {
     }
     else if(buf[0] != 0) {
         DISPLAY_ERROR_DIALOG("Failed to automatically start Poke-A-Byte integration", "An error occurred on startup when trying to enable Poke-A-Byte integration:\n\n%s", buf);
+    }
+    if(supershuckie_frontend_get_external_commands_enabled(this->frontend, buf, sizeof(buf))) {
+        this->enable_external_commands->setChecked(true);
+    }
+    else if(buf[0] != 0) {
+        DISPLAY_ERROR_DIALOG("Failed to automatically start external commands", "An error occurred on startup when trying to enable external commands:\n\n%s", buf);
     }
 
     const char *quick_slots = supershuckie_frontend_get_custom_setting(this->frontend, USE_NUMBER_KEYS_FOR_QUICK_SLOTS);
@@ -226,6 +231,8 @@ MainWindow::MainWindow(): QMainWindow() {
     this->sdl.frontend = this->frontend;
     this->render_widget->setFocus(Qt::OtherFocusReason);
     this->rebuild_recent_roms_menu();
+
+    this->ticker.start();
 }
 
 void MainWindow::set_title(const char *title) {
@@ -623,6 +630,12 @@ void MainWindow::set_up_settings_menu() {
     this->enable_pokeabyte_integration = this->settings_menu->addAction("Enable Poke-A-Byte integration");
     this->enable_pokeabyte_integration->setCheckable(true);
     connect(this->enable_pokeabyte_integration, SIGNAL(triggered()), this, SLOT(do_toggle_pokeabyte()));
+
+    this->enable_external_commands = this->settings_menu->addAction("Enable external commands");
+    this->enable_external_commands->setCheckable(true);
+    connect(this->enable_external_commands, SIGNAL(triggered()), this, SLOT(do_toggle_external_commands()));
+
+    this->settings_menu->addSeparator();
 
     this->show_status_bar = this->settings_menu->addAction("Show status bar");
     this->show_status_bar->setCheckable(true);
@@ -1123,4 +1136,11 @@ void MainWindow::do_clear_recent_roms() {
 
 void MainWindow::do_reload_core() {
     supershuckie_frontend_reload_core(this->frontend);
+}
+
+void MainWindow::do_toggle_external_commands() {
+    char buf[256];
+    if(!supershuckie_frontend_set_external_commands_enabled(this->frontend, this->enable_external_commands->isChecked(), buf, sizeof(buf))) {
+        DISPLAY_ERROR_DIALOG("Failed to start remote commands", "%s", buf);
+    }
 }

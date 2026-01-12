@@ -12,13 +12,13 @@ use std::sync::{Arc, Mutex, TryLockError, Weak};
 use std::time::Duration;
 use std::vec::Vec;
 use std::format;
-
+use spin::RwLock;
 #[cfg(feature = "pokeabyte")]
 use supershuckie_pokeabyte_integration::PokeAByteIntegrationServer;
 use supershuckie_pokeabyte_integration::PokeAByteEmulatorCommand;
 use supershuckie_replay_recorder::replay_file::playback::ReplayFilePlayer;
 use supershuckie_replay_recorder::replay_file::record::ReplayFileWriteError;
-use supershuckie_replay_recorder::{ByteVec, UnsignedInteger};
+use supershuckie_replay_recorder::{ByteVec, TimestampMillis, UnsignedInteger};
 
 /// A (mostly) non-blocking, threaded wrapper for [`SuperShuckieCore`].
 pub struct ThreadedSuperShuckieCore {
@@ -26,36 +26,43 @@ pub struct ThreadedSuperShuckieCore {
     sender: Sender<ThreadCommand>,
     receiver_close: Receiver<()>,
 
-    frame_count: Arc<AtomicU32>,
-    elapsed_milliseconds: Arc<AtomicU32>,
     desired_replay_frame: Arc<AtomicU32>,
     delta_replay_frames: Arc<AtomicI32>,
+    elapsed_time: Arc<RwLock<ElapsedTimeStats>>,
 
     playback: bool,
     playback_total_frames: UnsignedInteger,
-    playback_total_milliseconds: UnsignedInteger,
+    playback_total_milliseconds: TimestampMillis,
     replay_errors: Arc<Mutex<Vec<ReplayFileWriteError>>>
+}
+
+/// Current elapsed time, retrieved atomically (the frame count corresponds to milliseconds and vice versa).
+#[derive(Copy, Clone, Debug, Default)]
+#[expect(missing_docs)]
+pub struct ElapsedTimeStats {
+    pub milliseconds: u32,
+    pub frames: u32,
+    pub speed: Speed
 }
 
 impl ThreadedSuperShuckieCore {
     /// Wrap the given `core`.
     pub fn new(emulator_core: Box<dyn EmulatorCore>) -> Self {
-        let frame_count = Arc::new(AtomicU32::new(0));
         let screens = Arc::new(Mutex::new(emulator_core.get_screens().to_vec()));
         let (sender, receiver) = channel();
         let (sender_close, receiver_close) = channel();
 
-        let replay_milliseconds = Arc::new(AtomicU32::new(0));
         let playback_total_frames = 0;
-        let playback_total_milliseconds = 0;
+        let playback_total_milliseconds = TimestampMillis(0);
         let desired_replay_frame = Arc::new(AtomicU32::new(u32::MAX));
         let delta_replay_frames = Arc::new(AtomicI32::new(0));
         let replay_errors = Arc::new(Mutex::new(Vec::new()));
 
+        let elapsed_time = Arc::new(RwLock::new(ElapsedTimeStats::default()));
+
         {
-            let frame_count = frame_count.clone();
+            let elapsed_time = elapsed_time.clone();
             let screens = Arc::downgrade(&screens);
-            let replay_milliseconds = replay_milliseconds.clone();
             let desired_replay_frame = desired_replay_frame.clone();
             let delta_replay_frames = delta_replay_frames.clone();
             let replay_errors = replay_errors.clone();
@@ -70,8 +77,7 @@ impl ThreadedSuperShuckieCore {
                     receiver,
                     sender_close,
                     desired_replay_frame,
-                    frame_count,
-                    replay_milliseconds,
+                    elapsed_time,
                     delta_replay_frames,
                     replay_errors,
                     playback_frozen: false,
@@ -84,23 +90,19 @@ impl ThreadedSuperShuckieCore {
             sender,
             screens,
             receiver_close,
-            frame_count,
-            elapsed_milliseconds: replay_milliseconds,
             playback_total_frames,
             playback_total_milliseconds,
             replay_errors,
+            elapsed_time,
             playback: false,
             desired_replay_frame,
             delta_replay_frames
         }
     }
 
-    /// Get the elapsed frame count.
-    ///
-    /// This can be called to ensure that a unique frame is ready to be read. Note, however, that
-    /// this number may be slightly outdated.
-    pub fn get_elapsed_frames(&self) -> u32 {
-        self.frame_count.load(Ordering::Relaxed)
+    /// Get the elapsed time.
+    pub fn get_elapsed_time(&self) -> ElapsedTimeStats {
+        self.elapsed_time.read().to_owned()
     }
 
     /// Read the screens.
@@ -216,12 +218,6 @@ impl ThreadedSuperShuckieCore {
         receiver.recv().ok()
     }
 
-    /// Get the number of milliseconds a replay has been recorded.
-    #[inline]
-    pub fn get_elapsed_milliseconds(&self) -> u32 {
-        self.elapsed_milliseconds.load(Ordering::Relaxed)
-    }
-
     /// Get whether or not a replay is being played back.
     #[inline]
     pub fn is_playing_back(&self) -> bool {
@@ -237,14 +233,14 @@ impl ThreadedSuperShuckieCore {
     /// Get the total number of frames in the current playback.
     #[inline]
     pub fn get_playback_total_milliseconds(&self) -> u32 {
-        self.playback_total_milliseconds as u32
+        self.playback_total_milliseconds.0 as u32
     }
 
     /// Load the replay.
     pub fn attach_replay_player(&mut self, mut player: ReplayFilePlayer, allow_mismatch: bool) -> Result<(), ReplayPlayerAttachError> {
         player.enable_threading();
 
-        let total_ticks = player.get_total_milliseconds();
+        let total_milliseconds = player.get_total_milliseconds();
         let total_frames = player.get_total_frames();
 
         let (sender, receiver) = channel();
@@ -258,7 +254,7 @@ impl ThreadedSuperShuckieCore {
         match receiver.recv() {
             Err(_) => {
                 self.playback_total_frames = total_frames;
-                self.playback_total_milliseconds = total_ticks;
+                self.playback_total_milliseconds = total_milliseconds;
                 self.playback = true;
                 Ok(())
             },
@@ -269,7 +265,7 @@ impl ThreadedSuperShuckieCore {
     /// Detach a replay
     pub fn detach_replay_player(&mut self) {
         self.playback_total_frames = 0;
-        self.playback_total_milliseconds = 0;
+        self.playback_total_milliseconds = 0.into();
         self.playback = false;
         self.sender.send(ThreadCommand::DetachReplayPlayer)
             .expect("DetachReplayPlayer - the core thread has crashed")
@@ -292,6 +288,20 @@ impl ThreadedSuperShuckieCore {
     pub fn get_replay_recording_errors(&mut self) -> Vec<ReplayFileWriteError> {
         self.replay_errors.clear_poison();
         core::mem::take(&mut *self.replay_errors.lock().expect("get_replay_recording_errors fainted due to poison"))
+    }
+
+    /// Mark the start of the replay.
+    pub fn mark_start(&mut self) -> Result<(UnsignedInteger, TimestampMillis), ()> {
+        let (sender, receiver) = channel();
+        let _ = self.sender.send(ThreadCommand::MarkReplayStart(sender));
+        receiver.recv().map_err(|_| ())
+    }
+
+    /// Mark the end of the replay.
+    pub fn mark_end(&mut self) -> Result<(UnsignedInteger, TimestampMillis), ()> {
+        let (sender, receiver) = channel();
+        let _ = self.sender.send(ThreadCommand::MarkReplayEnd(sender));
+        receiver.recv().map_err(|_| ())
     }
 }
 
@@ -327,6 +337,8 @@ enum ThreadCommand {
     CreateSaveState(Sender<Vec<u8>>),
     LoadSaveState(Vec<u8>),
     SaveSRAM(Sender<Vec<u8>>),
+    MarkReplayStart(Sender<(UnsignedInteger, TimestampMillis)>),
+    MarkReplayEnd(Sender<(UnsignedInteger, TimestampMillis)>),
     Close
 }
 
@@ -335,8 +347,6 @@ struct ThreadedSuperShuckieCoreThread {
 
     screens_queued: Vec<ScreenData>,
     screen_ready_for_copy: bool,
-    frame_count: Arc<AtomicU32>,
-    replay_milliseconds: Arc<AtomicU32>,
     desired_replay_frame: Arc<AtomicU32>,
     delta_replay_frames: Arc<AtomicI32>,
     replay_errors: Arc<Mutex<Vec<ReplayFileWriteError>>>,
@@ -347,6 +357,8 @@ struct ThreadedSuperShuckieCoreThread {
     is_running: bool,
     pokeabyte_integration: Option<PokeAByteIntegrationServer>,
     sender_close: Sender<()>,
+
+    elapsed_time: Arc<RwLock<ElapsedTimeStats>>,
 
     freezes: BTreeMap<u64, ByteVec>
 }
@@ -368,7 +380,6 @@ impl ThreadedSuperShuckieCoreThread {
             self.refresh_screen_data();
             self.update_queued_screens();
             self.handle_pokeabyte_integration();
-            self.replay_milliseconds.store(self.core.get_recording_milliseconds() as u32, Ordering::Relaxed);
 
             if self.is_running {
                 if !self.playback_frozen {
@@ -430,7 +441,15 @@ impl ThreadedSuperShuckieCoreThread {
         let in_screens = &mut self.screens_queued;
         core::mem::swap(in_screens, &mut *out_screens);
 
-        self.frame_count.store(self.core.total_frames as u32, Ordering::Relaxed);
+        self.update_elapsed_time();
+    }
+
+    fn update_elapsed_time(&self) {
+        *self.elapsed_time.write() = ElapsedTimeStats {
+            milliseconds: self.core.get_recording_milliseconds().0 as u32,
+            frames: self.core.total_frames as u32,
+            speed: self.core.game_speed
+        };
     }
 
     /// Attempt to copy the screen data, or store it for later.
@@ -448,9 +467,7 @@ impl ThreadedSuperShuckieCoreThread {
         let out_screens_result = match out_screens_maybe.as_mut() {
             Ok(n) => {
                 self.screen_ready_for_copy = false;
-
-                // this is safe to update early since we have the mutex locked
-                self.frame_count.store(self.core.total_frames as u32, Ordering::Relaxed);
+                self.update_elapsed_time();
                 &mut *n
             },
             Err(TryLockError::WouldBlock) => {
@@ -482,7 +499,7 @@ impl ThreadedSuperShuckieCoreThread {
             .lock()
             .expect("can't get screens mutex force_get_screen_data");
 
-        self.frame_count.store(self.core.total_frames as u32, Ordering::Relaxed);
+        self.update_elapsed_time();
         self.screen_ready_for_copy = false;
 
         for (screen_from, screen_to) in self.core.core.get_screens().iter().zip(out_screens.iter_mut()) {
@@ -634,6 +651,16 @@ impl ThreadedSuperShuckieCoreThread {
             }
             ThreadCommand::DetachReplayPlayer => {
                 self.core.detach_replay_player();
+            }
+            ThreadCommand::MarkReplayStart(timestamp) => {
+                if let Some(n) = self.core.mark_start() {
+                    let _ = timestamp.send(n);
+                }
+            }
+            ThreadCommand::MarkReplayEnd(timestamp) => {
+                if let Some(n) = self.core.mark_end() {
+                    let _ = timestamp.send(n);
+                }
             }
         }
     }

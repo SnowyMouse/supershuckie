@@ -17,7 +17,7 @@ use core::num::NonZeroU64;
 use supershuckie_replay_recorder::replay_file::playback::{ReplayFilePlayer, ReplaySeekError};
 use supershuckie_replay_recorder::replay_file::record::{NonBlockingReplayFileRecorder, ReplayFileRecorder, ReplayFileRecorderFns, ReplayFileSink, ReplayFileWriteError};
 use supershuckie_replay_recorder::replay_file::{blake3_hash_to_ascii, ReplayFileMetadata, ReplayHeaderBlake3Hash, ReplayPatchFormat};
-use supershuckie_replay_recorder::{ByteVec, Packet, TimestampMicros, TimestampMillis, UnsignedInteger};
+use supershuckie_replay_recorder::{ByteVec, Packet, TimestampMillis, UnsignedInteger};
 
 pub mod emulator;
 
@@ -127,8 +127,8 @@ impl SuperShuckieCore {
             current_input: Default::default(),
             mid_frame: false,
             input_scratch_buffer: Vec::new(),
-            total_milliseconds: 0,
-            starting_milliseconds: timestamp_provider.get_timestamp_milliseconds(),
+            total_milliseconds: 0.into(),
+            starting_milliseconds: timestamp_provider.get_timestamp_milliseconds().into(),
             game_speed: Default::default(),
             frames_since_last_keyframe: 0,
             frames_per_keyframe: 0,
@@ -177,7 +177,7 @@ impl SuperShuckieCore {
 
     /// Pause the current timer.
     pub fn pause_timer(&mut self) {
-        self.paused_timer_at = Some(self.total_milliseconds + self.starting_milliseconds);
+        self.paused_timer_at = Some((self.total_milliseconds.0 + self.starting_milliseconds.0).into());
     }
 
     /// Unpause the current timer if it is currently paused.
@@ -187,13 +187,13 @@ impl SuperShuckieCore {
         };
         let unpaused_time = self.timestamp_provider.get_timestamp_milliseconds();
 
-        self.starting_milliseconds = self.starting_milliseconds.wrapping_add(unpaused_time.wrapping_sub(paused_time));
+        self.starting_milliseconds = self.starting_milliseconds.0.wrapping_add(unpaused_time.wrapping_sub(paused_time.0)).into();
     }
 
     fn restart_timer(&mut self) {
         self.paused_timer_at = None;
-        self.starting_milliseconds = self.timestamp_provider.get_timestamp_milliseconds();
-        self.total_milliseconds = 0;
+        self.starting_milliseconds = self.timestamp_provider.get_timestamp_milliseconds().into();
+        self.total_milliseconds = 0.into();
         self.total_frames = 0;
     }
 
@@ -207,6 +207,26 @@ impl SuperShuckieCore {
         self.game_speed = Speed::from_multiplier_float(speed.into_multiplier_float());
         self.core.set_speed(speed.into_multiplier_float());
         self.with_recorder(|r| r.set_speed(speed));
+    }
+
+    /// Mark the start of the replay, returning the timestamp.
+    pub fn mark_start(&mut self) -> Option<(UnsignedInteger, TimestampMillis)> {
+        if self.replay_file_recorder.is_none() {
+            return None
+        }
+
+        self.with_recorder(|r| r.mark_start());
+        Some((self.total_frames, self.total_milliseconds))
+    }
+
+    /// Mark the end of the replay, returning the timestamp.
+    pub fn mark_end(&mut self) -> Option<(UnsignedInteger, TimestampMillis)> {
+        if self.replay_file_recorder.is_none() {
+            return None
+        }
+
+        self.with_recorder(|r| r.mark_end());
+        Some((self.total_frames, self.total_milliseconds))
     }
 
     fn handle_replay(&mut self) {
@@ -232,7 +252,7 @@ impl SuperShuckieCore {
                     match n {
                         Packet::NoOp => {}
                         Packet::NextFrame { timestamp_delta } => {
-                            self.total_milliseconds = self.total_milliseconds.wrapping_add(*timestamp_delta);
+                            self.total_milliseconds = self.total_milliseconds.0.wrapping_add(timestamp_delta.0).into();
                             break;
                         }
                         Packet::WriteMemory { address, data } => {
@@ -407,6 +427,8 @@ impl SuperShuckieCore {
                 emulator_core_name,
                 patch_format: ReplayPatchFormat::Unpatched,
                 patch_target_checksum: ReplayHeaderBlake3Hash::default(),
+                crop_start: None,
+                crop_end: None
             },
 
             ByteVec::new(),
@@ -505,10 +527,10 @@ impl SuperShuckieCore {
         }
 
         if self.replay_player.is_none() && !self.mid_frame {
-            let ms = self.timestamp_provider.get_timestamp_milliseconds() - self.starting_milliseconds;
-            self.total_milliseconds = ms;
+            let ms = self.timestamp_provider.get_timestamp_milliseconds() - self.starting_milliseconds.0;
+            self.total_milliseconds = ms.into();
 
-            self.with_recorder(|f| f.next_frame(ms));
+            self.with_recorder(|f| f.next_frame(ms.into()));
         }
 
     }
@@ -705,6 +727,9 @@ impl Display for ReplayPlayerMetadataMismatchKind {
     }
 }
 
+#[allow(missing_docs)]
+pub type TimestampMicros = u64;
+
 /// Function that monotonically produces a timestamp.
 ///
 /// The timestamp must never go backwards, although it does not necessarily always have to go
@@ -716,7 +741,7 @@ pub trait MonotonicTimestampProvider: Send {
     /// Get the timestamp in microseconds.
     ///
     /// This does not need to be implemented.
-    fn get_timestamp_milliseconds(&mut self) -> TimestampMillis {
+    fn get_timestamp_milliseconds(&mut self) -> u64 {
         self.get_timestamp_microseconds() / 1000
     }
 }
@@ -730,7 +755,7 @@ pub fn std_timestamp_provider() -> Box<dyn MonotonicTimestampProvider> {
 #[cfg(feature = "std")]
 mod std_timestamp_provider {
     use std::time::Instant;
-    use supershuckie_replay_recorder::TimestampMicros;
+    use supershuckie_replay_recorder::UnsignedInteger;
     use crate::MonotonicTimestampProvider;
 
     pub struct StdTimestampProvider {
@@ -744,8 +769,8 @@ mod std_timestamp_provider {
     }
 
     impl MonotonicTimestampProvider for StdTimestampProvider {
-        fn get_timestamp_microseconds(&mut self) -> TimestampMicros {
-            (Instant::now() - self.reference_time).as_micros() as TimestampMicros
+        fn get_timestamp_microseconds(&mut self) -> u64 {
+            (Instant::now() - self.reference_time).as_micros() as UnsignedInteger
         }
     }
 }

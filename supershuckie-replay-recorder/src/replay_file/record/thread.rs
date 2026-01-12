@@ -137,6 +137,20 @@ impl<Final: ReplayFileSink + Send + 'static, Temp: ReplayFileSink + Send + 'stat
         
         errors
     }
+
+    /// Mark the start of the replay.
+    ///
+    /// This function is blocking.
+    pub fn mark_start(&mut self) {
+        let _ = self.sender.send(ThreadedReplayFileRecorderCommand::MarkStart);
+    }
+
+    /// Mark the end of the replay.
+    ///
+    /// This function is blocking.
+    pub fn mark_end(&mut self) {
+        let _ = self.sender.send(ThreadedReplayFileRecorderCommand::MarkEnd);
+    }
 }
 
 struct ThreadedReplayFileRecorderThread<Final: ReplayFileSink, Temp: ReplayFileSink> {
@@ -202,6 +216,12 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ThreadedReplayFileRecorderThre
             ThreadedReplayFileRecorderCommand::LoadSaveState { state } => {
                 recorder.load_save_state(state)
             }
+            ThreadedReplayFileRecorderCommand::MarkStart => {
+                recorder.mark_start()
+            }
+            ThreadedReplayFileRecorderCommand::MarkEnd => {
+                recorder.mark_end()
+            }
         }
     }
 }
@@ -209,11 +229,13 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ThreadedReplayFileRecorderThre
 enum ThreadedReplayFileRecorderCommand {
     NextFrame { timestamp: TimestampMillis },
     AddBookmark { bookmark: String },
-    NewKeyframe { state: ByteVec, timestamp: UnsignedInteger },
+    NewKeyframe { state: ByteVec, timestamp: TimestampMillis },
     SetInput { input: InputBuffer },
     SetSpeed { speed: Speed },
     WriteMemory { address: UnsignedInteger, data: ByteVec },
     LoadSaveState { state: ByteVec },
+    MarkStart,
+    MarkEnd,
     ResetConsole,
     Close
 }
@@ -281,6 +303,18 @@ impl<Final: ReplayFileSink + Sync + Send + 'static, Temp: ReplayFileSink + Sync 
     #[inline]
     fn get_errors(&mut self) -> Vec<ReplayFileWriteError> {
         self.poll_errors()
+    }
+
+    #[inline]
+    fn mark_start(&mut self) -> Result<(), ReplayFileWriteError> {
+        self.mark_start();
+        Ok(())
+    }
+
+    #[inline]
+    fn mark_end(&mut self) -> Result<(), ReplayFileWriteError> {
+        self.mark_end();
+        Ok(())
     }
 }
 

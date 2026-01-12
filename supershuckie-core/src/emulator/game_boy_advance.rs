@@ -2,9 +2,9 @@ use crate::emulator::{EmulatorCore, Input, RunTime, ScreenData, ScreenDataEncodi
 use alloc::{borrow::ToOwned, string::String, vec::Vec};
 use std::prelude::rust_2015::Box;
 use mgba_rs::Core;
-use supershuckie_replay_recorder::{blake3_hash, TimestampMicros};
+use supershuckie_replay_recorder::blake3_hash;
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash};
-use crate::MonotonicTimestampProvider;
+use crate::{MonotonicTimestampProvider, TimestampMicros};
 
 /// Emulator instance using mGBA.
 pub struct GameBoyAdvance {

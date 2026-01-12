@@ -1,7 +1,9 @@
 use tinyvec::TinyVec;
 use alloc::string::String;
 use alloc::vec::Vec;
+use core::fmt::Formatter;
 use core::num::NonZeroU16;
+use std::cmp::Ordering;
 
 mod io;
 pub use io::*;
@@ -10,10 +12,45 @@ pub use io::*;
 pub type InputBuffer = TinyVec<[u8; 16]>;
 #[allow(missing_docs)]
 pub type UnsignedInteger = u64;
+
+#[derive(Copy, Clone, PartialEq, Debug, Default, Ord, Eq)]
+#[repr(transparent)]
 #[allow(missing_docs)]
-pub type TimestampMillis = UnsignedInteger;
-#[allow(missing_docs)]
-pub type TimestampMicros = UnsignedInteger;
+pub struct TimestampMillis(pub UnsignedInteger);
+
+impl PartialOrd for TimestampMillis {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.0.cmp(&other.0))
+    }
+}
+
+impl core::fmt::Display for TimestampMillis {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl From<u64> for TimestampMillis {
+    #[inline]
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+impl PacketIO<'_> for TimestampMillis {
+    fn name(&self) -> &'static str {
+        "milliseconds"
+    }
+    fn write_packet_instructions(&self) -> PacketInstructionsVec<'_> {
+        self.0.write_packet_instructions()
+    }
+    fn read_all(from: &mut &[u8]) -> Result<Self, PacketReadError> {
+        Ok(Self(UnsignedInteger::read_all(from)?))
+    }
+}
+
 #[allow(missing_docs)]
 pub type ByteVec = TinyVec<[u8; 16]>;
 

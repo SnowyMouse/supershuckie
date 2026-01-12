@@ -206,7 +206,28 @@ bool supershuckie_frontend_is_pokeabyte_enabled(const struct SuperShuckieFronten
  * Safety:
  * - error must not be null and must be at least error_len bytes long.
  */
-bool supershuckie_frontend_set_pokeabyte_enabled(const struct SuperShuckieFrontendRaw *frontend, bool enabled, char *error, size_t error_len);
+bool supershuckie_frontend_set_pokeabyte_enabled(struct SuperShuckieFrontendRaw *frontend, bool enabled, char *error, size_t error_len);
+
+/**
+ * Get whether or not remote commands are enabled.
+ *
+ * If false, error may be filled with error data if there is any error data (or it will be empty if it is simply not
+ * enabled).
+ *
+ * Safety:
+ * - error must not be null and must be at least error_len bytes long.
+ */
+bool supershuckie_frontend_get_external_commands_enabled(const struct SuperShuckieFrontendRaw *frontend, char *error, size_t error_len);
+
+/**
+ * Set whether or not remote commands are enabled.
+ *
+ * Returns false if an error occurs, filling the error buffer with the error.
+ *
+ * Safety:
+ * - error must not be null and must be at least error_len bytes long.
+ */
+bool supershuckie_frontend_set_external_commands_enabled(const struct SuperShuckieFrontendRaw *frontend, bool enabled, char *error, size_t error_len);
 
 /**
  * Return true if the emulator is currently manually paused.

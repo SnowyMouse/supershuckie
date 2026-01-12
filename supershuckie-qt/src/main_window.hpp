@@ -118,6 +118,7 @@ private:
     QAction *use_number_row_for_quick_slots;
     QAction *show_status_bar;
     QAction *enable_pokeabyte_integration;
+    QAction *enable_external_commands;
 
     SuperShuckieReplayState last_known_replay_state = SuperShuckieReplayState::SuperShuckieReplayState__NoReplay;
 
@@ -209,6 +210,7 @@ private slots:
     void do_toggle_nds_jit();
     void do_clear_recent_roms();
     void do_reload_core();
+    void do_toggle_external_commands();
 };
 
 class NumberedAction: public QAction {

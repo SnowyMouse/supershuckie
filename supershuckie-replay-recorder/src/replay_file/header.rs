@@ -4,6 +4,7 @@ use alloc::format;
 use alloc::string::String;
 use core::ffi::CStr;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use crate::{TimestampMillis, UnsignedInteger};
 
 /// Signature start (all replay headers must start with this)
 pub const SIGNATURE_START: [u8; 4] = 0x4E49444Fu32.to_be_bytes();
@@ -57,8 +58,14 @@ pub struct ReplayHeaderRaw {
     /// 0x008 - type of the console
     pub console_type: MaybeEnum<ReplayConsoleType>,
 
+    /// 0x00C - crop_start_* are valid
+    pub crop_start: bool,
+
+    /// 0x00D - crop_end_* are valid
+    pub crop_end: bool,
+
     /// 0x00C - padding
-    pub _padding_0: [u8; 4],
+    pub _padding_0: [u8; 2],
 
     /// 0x010 name of the emulator core, including version
     pub emulator_core_name: ReplayHeaderString,
@@ -87,8 +94,20 @@ pub struct ReplayHeaderRaw {
     /// 0x360 - blake3 hash of the BIOS
     pub bios_checksum: ReplayHeaderBlake3Hash,
 
-    /// 0x380 - padding
-    pub _padding_2: [u8; 0x480 - 4],
+    /// 0x380 - crop range begin (frame index)
+    pub crop_start_frame: UnsignedInteger,
+
+    /// 0x388 - crop range begin (milliseconds)
+    pub crop_start_millis: TimestampMillis,
+
+    /// 0x390 - crop range end (frame index)
+    pub crop_end_frame: UnsignedInteger,
+
+    /// 0x398 - crop range end (milliseconds)
+    pub crop_end_millis: TimestampMillis,
+
+    /// 0x390 - padding
+    pub _padding_2: [u8; 0x460 - 4],
 
     /// 0x7FC - signature (must equal [`SIGNATURE_END`])
     pub signature_end: [u8; 4],
@@ -127,7 +146,13 @@ pub struct ReplayFileMetadata {
     pub patch_format: ReplayPatchFormat,
 
     /// blake3 hash of the target ROM (before patch)
-    pub patch_target_checksum: ReplayHeaderBlake3Hash
+    pub patch_target_checksum: ReplayHeaderBlake3Hash,
+
+    /// crop start
+    pub crop_start: Option<(UnsignedInteger, TimestampMillis)>,
+
+    /// crop end
+    pub crop_end: Option<(UnsignedInteger, TimestampMillis)>
 }
 
 impl ReplayHeaderRaw {
@@ -181,6 +206,9 @@ impl ReplayHeaderRaw {
             rom_name: parse_string_buffer(&self.rom_name, "rom_name")?,
             rom_filename: parse_string_buffer(&self.rom_filename, "rom_filename")?,
             emulator_core_name: parse_string_buffer(&self.emulator_core_name, "emulator_core_name")?,
+
+            crop_start: self.crop_start.then_some((self.crop_start_frame, self.crop_start_millis)),
+            crop_end: self.crop_end.then_some((self.crop_end_frame, self.crop_end_millis)),
         })
     }
 }
@@ -214,6 +242,14 @@ impl ReplayFileMetadata {
             patch_data_length: 0,
             patch_target_checksum: self.patch_target_checksum,
             signature_end: SIGNATURE_END,
+
+            crop_start_frame: self.crop_start.map(|i| i.0).unwrap_or(0),
+            crop_end_frame: self.crop_end.map(|i| i.0).unwrap_or(0),
+            crop_start_millis: self.crop_start.map(|i| i.1).unwrap_or(0.into()),
+            crop_end_millis: self.crop_end.map(|i| i.1).unwrap_or(0.into()),
+
+            crop_start: self.crop_start.is_some(),
+            crop_end: self.crop_end.is_some(),
 
             _padding_0: [0u8; _],
             _padding_1: [0u8; _],

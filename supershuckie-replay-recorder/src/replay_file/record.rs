@@ -2,7 +2,7 @@
 //!
 //! See [`ReplayFileRecorder`] and [`NonBlockingReplayFileRecorder`].
 
-use crate::replay_file::ReplayFileMetadata;
+use crate::replay_file::{ReplayFileMetadata, ReplayHeaderBytes, ReplayHeaderRaw};
 use crate::{BookmarkMetadata, ByteVec, InputBuffer, KeyframeMetadata, Packet, PacketIO, PacketWriteCommand, Speed, TimestampMillis, UnsignedInteger};
 use alloc::string::String;
 use alloc::borrow::Cow;
@@ -55,6 +55,7 @@ pub struct ReplayFileRecorder<Final: ReplayFileSink, Temp: ReplayFileSink> {
     current_input: InputBuffer,
 
     sink: Option<SinkTuple<Final, Temp>>,
+    header: ReplayHeaderRaw,
 
     poisoned: bool
 }
@@ -92,7 +93,7 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
         replay_file_metadata: ReplayFileMetadata,
         patch_data: ByteVec,
         mut settings: ReplayFileRecorderSettings,
-        starting_timestamp: UnsignedInteger,
+        starting_timestamp: TimestampMillis,
         starting_input: InputBuffer,
         starting_speed: Speed,
         initial_keyframe_state: ByteVec,
@@ -122,7 +123,7 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
         let mut recorder = ReplayFileRecorder {
             settings,
             elapsed_frames: 0,
-            elapsed_millis: 0,
+            elapsed_millis: 0.into(),
             last_keyframe_frames: 0,
             current_speed: starting_speed,
             current_input: starting_input,
@@ -132,6 +133,7 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
             current_blob_offset: u64::try_from(current_blob_offset).expect("failed to read"),
             poisoned: false,
             current_blob_size_undiffed: 0,
+            header: metadata,
             last_state_to_diff: None,
             sink: Some(SinkTuple {
                 final_sink, temp_sink
@@ -184,13 +186,13 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
     /// Advance a new frame.
     pub fn next_frame(&mut self, timestamp: TimestampMillis) -> Result<(), ReplayFileWriteError> {
         let elapsed_old = self.elapsed_millis;
-        let timestamp_delta = timestamp.checked_sub(self.elapsed_millis)
+        let timestamp_delta = timestamp.0.checked_sub(self.elapsed_millis.0)
             .ok_or_else(|| ReplayFileWriteError::BadInput { explanation: Cow::Owned(format!("Timestamp overflowed ({elapsed_old} -> {timestamp}")) })?;
 
         self.elapsed_frames += 1;
         self.elapsed_millis = timestamp;
 
-        self.write_packet_data(&Packet::NextFrame { timestamp_delta })
+        self.write_packet_data(&Packet::NextFrame { timestamp_delta: timestamp_delta.into() })
     }
 
     /// Add a bookmark.
@@ -378,6 +380,32 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
             Ok(())
         }
     }
+
+    /// Mark the current position as the start.
+    pub fn mark_start(&mut self) -> Result<(), ReplayFileWriteError> {
+        self.header.crop_start_frame = self.elapsed_frames;
+        self.header.crop_start_millis = self.elapsed_millis;
+        self.header.crop_start = true;
+        self.sync_header()
+    }
+
+    /// Mark the current position as the end.
+    pub fn mark_end(&mut self) -> Result<(), ReplayFileWriteError> {
+        self.header.crop_end_frame = self.elapsed_frames;
+        self.header.crop_end_millis = self.elapsed_millis;
+        self.header.crop_end = true;
+        self.sync_header()
+    }
+
+    fn sync_header(&mut self) -> Result<(), ReplayFileWriteError> {
+        let header_bytes = *self.header.as_bytes();
+        self.do_with_poison(|f| {
+            let (final_sink, temp_sink) = f.get_sinks();
+            temp_sink.overwrite_header(&header_bytes)?;
+            final_sink.overwrite_header(&header_bytes)?;
+            Ok(())
+        })
+    }
 }
 
 impl Default for ReplayFileRecorderSettings {
@@ -396,6 +424,9 @@ pub trait ReplayFileSink {
 
     /// Truncates the sink to the given size.
     fn truncate(&mut self, size: u64) -> Result<(), ReplayFileWriteError>;
+
+    /// Write the header at the start of the file.
+    fn overwrite_header(&mut self, header_data: &ReplayHeaderBytes) -> Result<(), ReplayFileWriteError>;
 
     /// Writes the given packet data.
     fn write_packet_data(&mut self, instructions: &[PacketWriteCommand<'_>]) -> Result<usize, ReplayFileWriteError> {
@@ -433,6 +464,17 @@ impl ReplayFileSink for Vec<u8> {
         }
         Ok(total_len)
     }
+
+    fn overwrite_header(&mut self, header_data: &ReplayHeaderBytes) -> Result<(), ReplayFileWriteError> {
+        if self.len() > header_data.len() {
+            self[..header_data.len()].copy_from_slice(header_data);
+        }
+        else {
+            self.clear();
+            self.extend_from_slice(header_data);
+        }
+        Ok(())
+    }
 }
 
 #[cfg(feature = "std")]
@@ -445,6 +487,14 @@ impl ReplayFileSink for File {
     fn truncate(&mut self, size: u64) -> Result<(), ReplayFileWriteError> {
         self.set_len(size)?;
         self.seek(SeekFrom::End(0))?;
+        Ok(())
+    }
+
+    fn overwrite_header(&mut self, header_data: &ReplayHeaderBytes) -> Result<(), ReplayFileWriteError> {
+        self.seek(SeekFrom::Start(0))?;
+        self.write_all(header_data.as_slice())?;
+        self.seek(SeekFrom::End(0))?;
+        self.flush()?;
         Ok(())
     }
 }
@@ -463,6 +513,12 @@ impl ReplayFileSink for std::io::BufWriter<File> {
         this.set_len(size)?;
         this.seek(SeekFrom::End(0))?;
         Ok(())
+    }
+
+    fn overwrite_header(&mut self, header_data: &ReplayHeaderBytes) -> Result<(), ReplayFileWriteError> {
+        let _ = self.flush();
+        let this = self.get_mut();
+        this.overwrite_header(header_data)
     }
 }
 
@@ -522,6 +578,9 @@ impl ReplayFileSink for NullReplayFileSink {
         }
         Ok(len)
     }
+    fn overwrite_header(&mut self, _: &ReplayHeaderBytes) -> Result<(), ReplayFileWriteError> {
+        Ok(())
+    }
 }
 
 /// Object-safe wrapper for [`ReplayFileRecorder`]
@@ -540,6 +599,8 @@ pub trait ReplayFileRecorderFns: core::any::Any + 'static + Send {
     fn set_speed(&mut self, speed: Speed) -> Result<(), ReplayFileWriteError>;
     fn load_save_state(&mut self, state: ByteVec) -> Result<(), ReplayFileWriteError>;
     fn get_errors(&mut self) -> Vec<ReplayFileWriteError>;
+    fn mark_start(&mut self) -> Result<(), ReplayFileWriteError>;
+    fn mark_end(&mut self) -> Result<(), ReplayFileWriteError>;
 }
 
 impl<Final: ReplayFileSink + 'static + Send, Temp: ReplayFileSink + 'static + Send> ReplayFileRecorderFns for ReplayFileRecorder<Final, Temp> {
@@ -599,6 +660,16 @@ impl<Final: ReplayFileSink + 'static + Send, Temp: ReplayFileSink + 'static + Se
     fn get_errors(&mut self) -> Vec<ReplayFileWriteError> {
         // TODO
         Vec::new()
+    }
+
+    #[inline]
+    fn mark_start(&mut self) -> Result<(), ReplayFileWriteError> {
+        self.mark_start()
+    }
+
+    #[inline]
+    fn mark_end(&mut self) -> Result<(), ReplayFileWriteError> {
+        self.mark_end()
     }
 }
 

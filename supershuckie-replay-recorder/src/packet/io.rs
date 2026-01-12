@@ -506,8 +506,8 @@ impl PacketIO<'_> for Packet {
                 bookmarks: Vec::read_all(from)?,
                 compressed_data: ByteVec::read_all(from)?,
                 uncompressed_size: UnsignedInteger::read_all(from)?,
-                timestamp_start: UnsignedInteger::read_all(from)?,
-                timestamp_end: UnsignedInteger::read_all(from)?,
+                timestamp_start: TimestampMillis::read_all(from)?,
+                timestamp_end: TimestampMillis::read_all(from)?,
                 elapsed_frames_start: UnsignedInteger::read_all(from)?,
                 elapsed_frames_end: UnsignedInteger::read_all(from)?
             }),
@@ -529,7 +529,7 @@ impl PacketIO<'_> for KeyframeMetadata {
             input: InputBuffer::read_all(from)?,
             speed: Speed::read_all(from)?,
             elapsed_frames: UnsignedInteger::read_all(from)?,
-            elapsed_millis: UnsignedInteger::read_all(from)?,
+            elapsed_millis: TimestampMillis::read_all(from)?,
         })
     }
 }
