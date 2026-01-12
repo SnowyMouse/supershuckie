@@ -43,13 +43,36 @@ NDSDateDialog::NDSDateDialog(MainWindow *main_window): QDialog(main_window), mai
     this->second = new QSpinBox(this);
     layout->addWidget(second, second_row, 1);
 
-    auto *note = new QLabel("Notes:\n• Changes will apply upon reloading the core or loading a save.\n• Replays and save states will ignore this setting.", this);
+    QLabel *note;
+    bool is_nds = supershuckie_frontend_get_emulator_type(this->main_window->frontend) == SuperShuckieEmulatorType::SuperShuckieEmulatorType__NintendoDS;
+
+    if(is_nds) {
+        note = new QLabel("Notes:\n• Changes will apply upon reloading the core or loading a save.\n• Replays and save states will ignore this setting.", this);
+    }
+    else {
+        note = new QLabel("Note: Replays and save states will ignore this setting.", this);
+    }
+
     note->setAttribute(Qt::WA_MacSmallSize);
     layout->addWidget(note, 200, 0, 1, 2);
 
-    auto *save = new QPushButton("OK", this);
+    auto *save = new QPushButton("Save and close", this);
     connect(save, SIGNAL(clicked()), this, SLOT(accept()));
-    layout->addWidget(save, 201, 0, 1, 2);
+    layout->addWidget(save, 201, 0);
+
+    if(
+        supershuckie_frontend_get_replay_state(this->main_window->frontend) != SuperShuckieReplayState::SuperShuckieReplayState__NoReplay || !is_nds
+    ) {
+        layout->addWidget(save, 201, 0, 1, 2);
+    }
+    else {
+        auto *save_reload = new QPushButton("Save and reload core", this);
+        connect(save_reload, SIGNAL(clicked()), this, SLOT(save_and_reload()));
+        layout->addWidget(save, 201, 0);
+        layout->addWidget(save_reload, 201, 1);
+
+        save_reload->setDefault(true);
+    }
 
     SuperShuckieNintendoDSDate date = {};
     supershuckie_frontend_get_nds_date(this->main_window->frontend, &date);
@@ -100,5 +123,14 @@ void NDSDateDialog::accept() {
 
     supershuckie_frontend_set_nds_date(this->main_window->frontend, &date);
 
+    if(this->should_reload_core) {
+        supershuckie_frontend_reload_core(this->main_window->frontend);
+    }
+
     QDialog::accept();
+}
+
+void NDSDateDialog::save_and_reload() {
+    this->should_reload_core = true;
+    this->accept();
 }

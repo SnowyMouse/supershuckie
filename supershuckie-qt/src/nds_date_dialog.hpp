@@ -27,7 +27,12 @@ private:
     QSpinBox *minute;
     QSpinBox *second;
 
+    bool should_reload_core = false;
+
     void accept() override;
+
+private slots:
+    void save_and_reload();
 };
 
 }

@@ -26,6 +26,7 @@ const REPLAY_EXTENSION: &str = "replay";
 pub type ConnectedControllerIndex = u32;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
+#[repr(C)]
 pub enum SuperShuckieEmulatorType {
     GameBoy,
     GameBoySGB2,
@@ -1199,6 +1200,11 @@ impl SuperShuckieFrontend {
     pub fn set_sgb_enabled(&mut self, enabled: bool) {
         self.settings.game_boy_settings.sgb = enabled;
         self.reload_game_boy_if_needed();
+    }
+
+    #[inline]
+    pub fn get_emulator_type(&self) -> Option<SuperShuckieEmulatorType> {
+        self.core_metadata.emulator_type
     }
 
     fn reload_game_boy_if_needed(&mut self) {

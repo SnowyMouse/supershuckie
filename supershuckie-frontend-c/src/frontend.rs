@@ -1,4 +1,4 @@
-use std::ffi::{c_char, c_void, CStr};
+use std::ffi::{c_char, c_int, c_void, CStr};
 use std::mem::MaybeUninit;
 use std::num::NonZeroU8;
 use std::ptr::null;
@@ -770,4 +770,11 @@ pub unsafe extern "C" fn supershuckie_frontend_reload_core(
     frontend: &mut SuperShuckieFrontend
 ) {
     frontend.reload_core();
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn supershuckie_frontend_get_emulator_type(
+    frontend: &SuperShuckieFrontend
+) -> c_int {
+    frontend.get_emulator_type().map(|i| i as c_int).unwrap_or(-1)
 }

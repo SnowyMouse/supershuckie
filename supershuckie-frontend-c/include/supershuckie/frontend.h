@@ -33,6 +33,14 @@ enum SuperShuckieReplayState {
     SuperShuckieReplayState__Playback
 };
 
+enum SuperShuckieEmulatorType {
+    SuperShuckieEmulatorType__GameBoy,
+    SuperShuckieEmulatorType__GameBoySGB2,
+    SuperShuckieEmulatorType__GameBoyColor,
+    SuperShuckieEmulatorType__GameBoyAdvance,
+    SuperShuckieEmulatorType__NintendoDS
+};
+
 typedef void (*SuperShuckieRefreshScreensCallback)(void *user_data, size_t screen_count, const uint32_t *const *pixels);
 typedef void (*SuperShuckieChangeVideoModeCallback)(void *user_data, size_t screen_count, const struct SuperShuckieScreenData *screen_data, uint8_t scaling);
 
@@ -547,6 +555,13 @@ size_t supershuckie_frontend_get_current_data_directory(const struct SuperShucki
  * This will end any replay and automatically save the current game.
  */
 void supershuckie_frontend_reload_core(struct SuperShuckieFrontendRaw *frontend);
+
+/**
+ * Get the current emulator type.
+ *
+ * Returns -1 if not running a game.
+ */
+enum SuperShuckieEmulatorType supershuckie_frontend_get_emulator_type(const struct SuperShuckieFrontendRaw *frontend);
 
 /**
  * Free the core
