@@ -97,7 +97,7 @@ impl EmulatorCore for GameBoyAdvance {
 
     fn write_ram(&mut self, address: u32, from: &[u8]) -> Result<(), &'static str> {
         let ram_requested = match address {
-            0x2000000..0x2040000 => self.core.get_iwram_mut().get_mut((address - 0x2000000) as usize..).expect("failed to get EWRAM mutably"),
+            0x2000000..0x2040000 => self.core.get_ewram_mut().get_mut((address - 0x2000000) as usize..).expect("failed to get EWRAM mutably"),
             0x3000000..0x3008000 => self.core.get_iwram_mut().get_mut((address - 0x3000000) as usize..).expect("failed to get IWRAM mutably"),
             _ => return Err("unknown address")
         };
