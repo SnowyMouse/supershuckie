@@ -50,7 +50,17 @@ impl EmulatorCore for GameBoyAdvance {
             }
         }
 
-        self.run_unlocked()
+        let rval = self.run_unlocked();
+
+        // if our clock is way too far behind, limit it a bit
+        let several_frames_ago = self.clock
+            .get_timestamp_microseconds()
+            .saturating_sub(self.microseconds_per_frames * 16);
+
+        self.last_frame_microseconds = (self.last_frame_microseconds + self.microseconds_per_frames)
+            .max(several_frames_ago);
+
+        rval
     }
 
     fn run_unlocked(&mut self) -> RunTime {
@@ -64,14 +74,6 @@ impl EmulatorCore for GameBoyAdvance {
 
             *a = 0xFF000000 | r | g | b;
         }
-
-        // if our clock is way too far behind, limit it a bit
-        let several_frames_ago = self.clock
-            .get_timestamp_microseconds()
-            .saturating_sub(self.microseconds_per_frames * 16);
-
-        self.last_frame_microseconds = (self.last_frame_microseconds + self.microseconds_per_frames)
-            .max(several_frames_ago);
 
         RunTime {
             frames: 1
