@@ -535,6 +535,8 @@ impl ThreadedSuperShuckieCoreThread {
             let into = ram.get_mut(read.range.clone()).expect("read range was wrong (this should have been checked!)");
             let _ = self.core.get_core().read_ram(read.game_address, into); // TODO: handle this?
         }
+
+        session.finish_frame();
     }
 
     fn handle_command(&mut self, command: ThreadCommand) {

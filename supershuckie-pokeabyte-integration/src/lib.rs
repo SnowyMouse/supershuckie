@@ -41,7 +41,25 @@ pub struct PokeAByteSession {
     pub writes: PokeAByteWriteQueue,
 
     /// Current setup configuration from the Poke-A-Byte client.
-    pub config: PokeAByteSetup
+    pub config: PokeAByteSetup,
+
+    address: SocketAddr,
+    socket: UdpSocket,
+    setup_complete: bool
+}
+
+impl PokeAByteSession {
+    /// Finish a read.
+    ///
+    /// This needs to be called on each frame.
+    pub fn finish_frame(&mut self) {
+        if !self.setup_complete {
+            self.setup_complete = true;
+
+            // let Poke-A-Byte know that we're open for business
+            let _ = self.socket.send_to(&MetadataHeader::new_response(Instruction::Setup).into_bytes(), &self.address);
+        }
+    }
 }
 
 /// Write queue from Poke-A-Byte.
@@ -161,8 +179,13 @@ impl PokeAByteIntegrationServer {
                     *session = None; // For cleaning up the old SHM and clearing the file descriptor.
 
                     // Safety: We're going to zero-initialize this before we use it.
-                    let mut shared_memory = unsafe { PokeAByteSharedMemory::new(memory_size) }
-                        .expect("Failed to initialize shared memory");
+                    let mut shared_memory = match unsafe { PokeAByteSharedMemory::new(memory_size) } {
+                        Ok(n) => n,
+                        Err(e) => {
+                            eprintln!("[PABP] Failed to instantiate shared memory: {e:?}");
+                            continue;
+                        }
+                    };
 
                     let (writer_queue, writes_queue) = channel();
 
@@ -173,10 +196,6 @@ impl PokeAByteIntegrationServer {
                     last_setup_user = Some(addr);
                     eprintln!("[PABP] Accepted new session from client @ {addr}");
 
-                    // let Poke-A-Byte know that we're open for business, since zero initialization
-                    // is not instant (though it'll probably still be quick)
-                    let _ = socket.send_to(&MetadataHeader::new_response(Instruction::Setup).into_bytes(), addr);
-
                     // Zero-initialize
                     unsafe { shared_memory.get_memory_mut() }.fill(0);
 
@@ -186,8 +205,10 @@ impl PokeAByteIntegrationServer {
                         config: PokeAByteSetup {
                             blocks, frame_skip, _cant_let_you_instantiate_that_stair_fax: ()
                         },
+                        address: addr,
+                        socket: socket.try_clone().expect("can't clone a UDP socket for some reason"),
+                        setup_complete: false
                     });
-
                 },
                 PokeAByteProtocolRequestPacket::Write { data, address } => {
                     if Some(addr) != last_setup_user {
