@@ -139,7 +139,7 @@ dependencies = [
 
 [[package]]
 name = "melonds-rs"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "cc",
 ]
@@ -152,7 +152,7 @@ checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
 
 [[package]]
 name = "mgba-rs"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "cc",
 ]
@@ -344,7 +344,7 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "melonds-rs",
  "mgba-rs",
@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-frontend"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "num_enum",
  "serde",
@@ -367,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-frontend-c"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "supershuckie-core",
  "supershuckie-frontend",
@@ -375,7 +375,7 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-pokeabyte-integration"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "byteorder",
  "cc",
@@ -385,7 +385,7 @@ dependencies = [
 
 [[package]]
 name = "supershuckie-replay-recorder"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "blake3",
  "num_enum",
