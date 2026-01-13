@@ -507,6 +507,7 @@ impl ThreadedSuperShuckieCoreThread {
                     self.core.enqueue_write(address as u32, data);
                 },
                 PokeAByteEmulatorCommand::Freeze { address, data } => {
+                    self.core.enqueue_write(address as u32, data.clone());
                     self.freezes.insert(address, data);
                 },
                 PokeAByteEmulatorCommand::Unfreeze { address } => {
@@ -518,13 +519,16 @@ impl ThreadedSuperShuckieCoreThread {
             }
         }
 
-        for (address, data) in &self.freezes {
-            self.core.enqueue_write(*address as u32, data.clone());
-        }
-
-        // don't update reads mid-frame; it's too slow
+        // don't update reads or apply freezes mid-frame; it's too slow
         if self.core.mid_frame && self.is_running {
             return;
+        }
+        
+        // apply freezes immediately regardless of frame skipping setting
+        if self.is_running {
+            for (address, data) in &self.freezes {
+                self.core.enqueue_write(*address as u32, data.clone());
+            }
         }
 
         // handle frame skipping unless we're paused
