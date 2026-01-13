@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::net::UdpSocket;
+use std::net::{SocketAddr, UdpSocket};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::Duration;
@@ -105,10 +105,15 @@ impl PokeAByteIntegrationServer {
     fn thread(session: Weak<Mutex<Option<PokeAByteSession>>>, socket: UdpSocket, close_notifier: Sender<()>) {
         let mut buffer = vec![0u8; 65536];
 
+        let mut last_setup_user: Option<SocketAddr> = None;
         let mut writer: Option<Sender<PokeAByteWrite>> = None;
 
         loop {
             let Some(promotion) = session.upgrade() else {
+                if let Some(addr) = last_setup_user {
+                    let _ = socket.send_to(&MetadataHeader::new_response(Instruction::Close).into_bytes(), addr);
+                    eprintln!("[PABP] Disconnecting because server is being terminated/restarted");
+                }
                 drop(socket);
                 let _ = close_notifier.send(());
                 return
@@ -122,10 +127,7 @@ impl PokeAByteIntegrationServer {
             let packet = match PokeAByteProtocolRequestPacket::parse_bytes(bytes_received) {
                 Ok(n) => n,
                 Err(e) => {
-                    // TODO: should we log this?
-                    if cfg!(debug_assertions) {
-                        eprintln!("PokeAByte error: {e:?}");
-                    }
+                    eprintln!("[PABP] Error from client @ {addr}: {e:?}");
                     continue
                 }
             };
@@ -136,7 +138,8 @@ impl PokeAByteIntegrationServer {
                 },
                 PokeAByteProtocolRequestPacket::NoOp => {},
                 PokeAByteProtocolRequestPacket::Close => {
-                    // unhandled for now
+                    last_setup_user = None;
+                    continue;
                 },
                 PokeAByteProtocolRequestPacket::Setup { blocks, frame_skip } => {
                     let memory_size = blocks
@@ -157,6 +160,10 @@ impl PokeAByteIntegrationServer {
                     let writes = PokeAByteWriteQueue { queue: writes_queue };
                     writer = Some(writer_queue);
 
+                    // note down the address
+                    last_setup_user = Some(addr);
+                    eprintln!("[PABP] Accepted new session from client @ {addr}");
+
                     // let Poke-A-Byte know that we're open for business, since zero initialization
                     // is not instant (though it'll probably still be quick)
                     let _ = socket.send_to(&MetadataHeader::new_response(Instruction::Setup).into_bytes(), addr);
@@ -174,6 +181,16 @@ impl PokeAByteIntegrationServer {
 
                 },
                 PokeAByteProtocolRequestPacket::Write { data, address } => {
+                    if Some(addr) != last_setup_user {
+                        if last_setup_user.is_none() {
+                            eprintln!("[PABP] Ignoring write from client @ {addr} (no session yet)");
+                        }
+                        else {
+                            eprintln!("[PABP] Ignoring write from client @ {addr} (address mismatch)");
+                        }
+                        continue
+                    }
+
                     if data.is_empty() {
                         continue
                     }
