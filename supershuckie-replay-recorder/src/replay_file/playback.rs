@@ -107,6 +107,37 @@ impl ReplayFilePlayer {
             }
         }
 
+        let mut current_keyframe_state = None;
+        for i in &mut all_packets {
+            match i {
+                Packet::Keyframe { state, .. } => {
+                    current_keyframe_state = Some(state.to_owned());
+                }
+                Packet::CompressedBlob { .. } => {
+                    current_keyframe_state = None;
+                },
+                Packet::DeltaKeyframe { metadata, diff } => {
+                    let Some(current) = current_keyframe_state.take() else {
+                        if allow_some_corruption {
+                            continue
+                        }
+                        return Err(ReplayFileReadError::BrokenPacket { explanation: Cow::Borrowed("Delta keyframe without a prior keyframe") })
+                    };
+
+                    let Some(applied) = apply_diff(current.as_slice(), diff.as_slice()) else {
+                        if allow_some_corruption {
+                            continue
+                        }
+                        return Err(ReplayFileReadError::BrokenPacket { explanation: Cow::Borrowed("Delta keyframe failed to apply diff") })
+                    };
+
+                    *i = Packet::Keyframe { metadata: core::mem::take(metadata), state: ByteVec::Heap(applied.clone()) };
+                    current_keyframe_state = Some(ByteVec::Heap(applied));
+                },
+                _ => {}
+            }
+        }
+
         let all_packets = Arc::new(all_packets);
 
         let Some(first_packet) = all_packets.get(0) else {
