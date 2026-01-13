@@ -63,6 +63,12 @@ impl PokeAByteSession {
             let _ = self.socket.send_to(&MetadataHeader::new_response(Instruction::Setup).into_bytes(), &self.address);
         }
     }
+
+    /// Return true if the first frame
+    #[inline]
+    pub const fn is_first_frame(&self) -> bool {
+        !self.setup_complete
+    }
 }
 
 /// Write queue from Poke-A-Byte.

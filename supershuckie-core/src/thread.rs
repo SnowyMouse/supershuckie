@@ -523,7 +523,7 @@ impl ThreadedSuperShuckieCoreThread {
         if self.core.mid_frame && self.is_running {
             return;
         }
-        
+
         // apply freezes immediately regardless of frame skipping setting
         if self.is_running {
             for (address, data) in &self.freezes {
@@ -531,8 +531,8 @@ impl ThreadedSuperShuckieCoreThread {
             }
         }
 
-        // handle frame skipping unless we're paused
-        if self.is_running && let Some(skipping) = session.config.frame_skip && self.core.total_frames % ((skipping as u64) + 1) != 0 {
+        // handle frame skipping unless we're paused (or we haven't set up yet)
+        if !session.is_first_frame() && self.is_running && let Some(skipping) = session.config.frame_skip && self.core.total_frames % ((skipping as u64) + 1) != 0 {
             return
         }
 
