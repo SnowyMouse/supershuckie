@@ -15,7 +15,7 @@ use std::format;
 
 #[cfg(feature = "pokeabyte")]
 use supershuckie_pokeabyte_integration::PokeAByteIntegrationServer;
-use supershuckie_pokeabyte_integration::PokeAByteWriteCommand;
+use supershuckie_pokeabyte_integration::PokeAByteEmulatorCommand;
 use supershuckie_replay_recorder::replay_file::playback::ReplayFilePlayer;
 use supershuckie_replay_recorder::replay_file::record::ReplayFileWriteError;
 use supershuckie_replay_recorder::{ByteVec, UnsignedInteger};
@@ -503,14 +503,17 @@ impl ThreadedSuperShuckieCoreThread {
 
         for write in &mut session.writes {
             match write {
-                PokeAByteWriteCommand::Write { address, data } => {
+                PokeAByteEmulatorCommand::Write { address, data } => {
                     self.core.enqueue_write(address as u32, data);
                 },
-                PokeAByteWriteCommand::Freeze { address, data } => {
+                PokeAByteEmulatorCommand::Freeze { address, data } => {
                     self.freezes.insert(address, data);
                 },
-                PokeAByteWriteCommand::Unfreeze { address } => {
+                PokeAByteEmulatorCommand::Unfreeze { address } => {
                     self.freezes.remove(&address);
+                },
+                PokeAByteEmulatorCommand::Reset => {
+                    self.freezes.clear();
                 }
             }
         }

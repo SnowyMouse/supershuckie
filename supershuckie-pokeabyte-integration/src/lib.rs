@@ -13,7 +13,10 @@ compile_error!("must be compiled for 64-bit");
 // FIXME: this is not currently configurable
 const POKEABYTE_UDP: &str = "127.0.0.1:55356";
 
-pub enum PokeAByteWriteCommand {
+/// Command for the emulator to handle.
+#[derive(Clone, PartialEq, Debug)]
+pub enum PokeAByteEmulatorCommand {
+    Reset,
     Write {
         address: u64,
         data: TinyVec<[u8; 16]>,
@@ -64,11 +67,11 @@ impl PokeAByteSession {
 
 /// Write queue from Poke-A-Byte.
 pub struct PokeAByteWriteQueue {
-    queue: Receiver<PokeAByteWriteCommand>
+    queue: Receiver<PokeAByteEmulatorCommand>
 }
 
 impl Iterator for PokeAByteWriteQueue {
-    type Item = PokeAByteWriteCommand;
+    type Item = PokeAByteEmulatorCommand;
     fn next(&mut self) -> Option<Self::Item> {
         self.queue.try_recv().ok()
     }
@@ -133,7 +136,7 @@ impl PokeAByteIntegrationServer {
         let mut buffer = vec![0u8; 65536];
 
         let mut last_setup_user: Option<SocketAddr> = None;
-        let mut writer: Option<Sender<PokeAByteWriteCommand>> = None;
+        let mut writer: Option<Sender<PokeAByteEmulatorCommand>> = None;
 
         loop {
             let Some(promotion) = session.upgrade() else {
@@ -190,6 +193,7 @@ impl PokeAByteIntegrationServer {
                     let (writer_queue, writes_queue) = channel();
 
                     let writes = PokeAByteWriteQueue { queue: writes_queue };
+                    let _ = writer_queue.send(PokeAByteEmulatorCommand::Reset);
                     writer = Some(writer_queue);
 
                     // note down the address
@@ -229,7 +233,7 @@ impl PokeAByteIntegrationServer {
                         continue
                     };
 
-                    let _ = writer.send(PokeAByteWriteCommand::Write {
+                    let _ = writer.send(PokeAByteEmulatorCommand::Write {
                         address, data: data.into()
                     });
                 },
@@ -252,7 +256,7 @@ impl PokeAByteIntegrationServer {
                         continue
                     };
 
-                    let _ = writer.send(PokeAByteWriteCommand::Freeze {
+                    let _ = writer.send(PokeAByteEmulatorCommand::Freeze {
                         address, data: data.into()
                     });
                 }
@@ -271,7 +275,7 @@ impl PokeAByteIntegrationServer {
                         continue
                     };
 
-                    let _ = writer.send(PokeAByteWriteCommand::Unfreeze {
+                    let _ = writer.send(PokeAByteEmulatorCommand::Unfreeze {
                         address
                     });
                 }
