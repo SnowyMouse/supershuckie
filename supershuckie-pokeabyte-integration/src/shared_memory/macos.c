@@ -21,6 +21,9 @@ uint8_t *supershuckie_pokeabyte_try_create_shared_memory(size_t len, const char 
         return NULL;
     }
 
+    // Remove the shared memory if it already exists; ftruncate only works once per shared memory.
+    shm_unlink(shm);
+
     int new_fd = shm_open(shm, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
     if(new_fd < 0) {
         if(error) {
@@ -29,7 +32,14 @@ uint8_t *supershuckie_pokeabyte_try_create_shared_memory(size_t len, const char 
         return NULL;
     }
 
-    ftruncate(new_fd, len);
+    if(ftruncate(new_fd, len) != 0) {
+        if(error) {
+            *error = "ftruncate failed";
+        }
+        close(new_fd);
+        return NULL;
+    }
+
     uint8_t *f = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED, new_fd, 0);
 
     if(f == (void *)-1) {

@@ -27,7 +27,7 @@ impl PokeAByteSharedMemory {
         let memory = unsafe {
             let ram = supershuckie_pokeabyte_try_create_shared_memory(len, &mut error);
             if ram.is_null() {
-                return Err(PokeAByteError::SharedMemoryFailure { explanation: Cow::Owned(format!("Error: {}", CStr::from_ptr(error).to_str().unwrap())) })
+                return Err(PokeAByteError::SharedMemoryFailure { explanation: Cow::Owned(format!("Error sharing {len} bytes: {}", CStr::from_ptr(error).to_str().unwrap())) })
             }
             std::slice::from_raw_parts_mut(ram, len)
         };
