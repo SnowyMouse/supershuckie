@@ -2,17 +2,6 @@
 members = [
     "supershuckie-core",
     "supershuckie-pokeabyte-integration",
-    "supershuckie-pokeabyte-integration/supershuckie-pokeabyte-integration-test",
-    "supershuckie-replay-recorder",
-    "supershuckie-frontend",
-    "supershuckie-frontend-c",
-    "melonds-rs",
-    "mgba-rs"
-]
-
-default-members = [
-    "supershuckie-core",
-    "supershuckie-pokeabyte-integration",
     "supershuckie-replay-recorder",
     "supershuckie-frontend",
     "supershuckie-frontend-c",

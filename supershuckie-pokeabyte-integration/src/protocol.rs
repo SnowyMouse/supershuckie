@@ -16,6 +16,8 @@ pub enum Instruction {
     Ping = 1,
     Setup = 2,
     Write = 3,
+    Freeze = 4,
+    Unfreeze = 5,
     Close = 0xFF
 }
 
@@ -78,6 +80,13 @@ pub enum PokeAByteProtocolRequestPacket<'a> {
     Write {
         address: u64,
         data: &'a [u8]
+    },
+    Freeze {
+        address: u64,
+        data: &'a [u8]
+    },
+    Unfreeze {
+        address: u64
     },
     Close,
 }
@@ -147,7 +156,7 @@ impl<'a> PokeAByteProtocolRequestPacket<'a> {
                 })
             },
             Instruction::Write => {
-                let Some(_params) = bytes.get(0x8..0x10) else {
+                let Some(_params) = bytes.get(0x8..0x14) else {
                     return Err(PokeAByteError::BadPacketFromClient { explanation: Cow::Borrowed("too small to be write header") })
                 };
 
@@ -164,6 +173,32 @@ impl<'a> PokeAByteProtocolRequestPacket<'a> {
 
                 Ok(Self::Write { data, address })
             },
+            Instruction::Freeze => {
+                let Some(_params) = bytes.get(0x8..0x14) else {
+                    return Err(PokeAByteError::BadPacketFromClient { explanation: Cow::Borrowed("too small to be freeze header") })
+                };
+
+                let address = LittleEndian::read_u64(&bytes[0x8..]);
+                let length: usize = LittleEndian::read_u32(&bytes[0x10..]) as usize;
+
+                let Some(data) = bytes.get(0x20..) else {
+                    return Err(PokeAByteError::BadPacketFromClient { explanation: Cow::Borrowed("failed to read data: no bytes after length") })
+                };
+
+                let Some(data) = data.get(..length) else {
+                    return Err(PokeAByteError::BadPacketFromClient { explanation: Cow::Borrowed("failed to read data: insufficient length") })
+                };
+
+                Ok(Self::Freeze { address, data } )
+            },
+            Instruction::Unfreeze => {
+                let Some(_params) = bytes.get(0x8..0x10) else {
+                    return Err(PokeAByteError::BadPacketFromClient { explanation: Cow::Borrowed("too small to be unfreeze header") })
+                };
+
+                let address = LittleEndian::read_u64(&bytes[0x8..]);
+                Ok(Self::Unfreeze { address })
+            }
             Instruction::Close => Ok(Self::Close)
         }
     }

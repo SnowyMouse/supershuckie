@@ -13,9 +13,18 @@ compile_error!("must be compiled for 64-bit");
 // FIXME: this is not currently configurable
 const POKEABYTE_UDP: &str = "127.0.0.1:55356";
 
-pub struct PokeAByteWrite {
-    pub address: u64,
-    pub data: TinyVec<[u8; 16]>
+pub enum PokeAByteWriteCommand {
+    Write {
+        address: u64,
+        data: TinyVec<[u8; 16]>,
+    },
+    Freeze {
+        address: u64,
+        data: TinyVec<[u8; 16]>,
+    },
+    Unfreeze {
+        address: u64
+    }
 }
 
 pub struct PokeAByteIntegrationServer {
@@ -37,11 +46,11 @@ pub struct PokeAByteSession {
 
 /// Write queue from Poke-A-Byte.
 pub struct PokeAByteWriteQueue {
-    queue: Receiver<PokeAByteWrite>
+    queue: Receiver<PokeAByteWriteCommand>
 }
 
 impl Iterator for PokeAByteWriteQueue {
-    type Item = PokeAByteWrite;
+    type Item = PokeAByteWriteCommand;
     fn next(&mut self) -> Option<Self::Item> {
         self.queue.try_recv().ok()
     }
@@ -106,7 +115,7 @@ impl PokeAByteIntegrationServer {
         let mut buffer = vec![0u8; 65536];
 
         let mut last_setup_user: Option<SocketAddr> = None;
-        let mut writer: Option<Sender<PokeAByteWrite>> = None;
+        let mut writer: Option<Sender<PokeAByteWriteCommand>> = None;
 
         loop {
             let Some(promotion) = session.upgrade() else {
@@ -199,8 +208,50 @@ impl PokeAByteIntegrationServer {
                         continue
                     };
 
-                    let _ = writer.send(PokeAByteWrite {
+                    let _ = writer.send(PokeAByteWriteCommand::Write {
                         address, data: data.into()
+                    });
+                },
+                PokeAByteProtocolRequestPacket::Freeze { address, data } => {
+                    if Some(addr) != last_setup_user {
+                        if last_setup_user.is_none() {
+                            eprintln!("[PABP] Ignoring freeze from client @ {addr} (no session yet)");
+                        }
+                        else {
+                            eprintln!("[PABP] Ignoring freeze from client @ {addr} (address mismatch)");
+                        }
+                        continue
+                    }
+
+                    if data.is_empty() {
+                        continue;
+                    }
+
+                    let Some(writer) = writer.as_ref() else {
+                        continue
+                    };
+
+                    let _ = writer.send(PokeAByteWriteCommand::Freeze {
+                        address, data: data.into()
+                    });
+                }
+                PokeAByteProtocolRequestPacket::Unfreeze { address } => {
+                    if Some(addr) != last_setup_user {
+                        if last_setup_user.is_none() {
+                            eprintln!("[PABP] Ignoring freeze from client @ {addr} (no session yet)");
+                        }
+                        else {
+                            eprintln!("[PABP] Ignoring freeze from client @ {addr} (address mismatch)");
+                        }
+                        continue
+                    }
+
+                    let Some(writer) = writer.as_ref() else {
+                        continue
+                    };
+
+                    let _ = writer.send(PokeAByteWriteCommand::Unfreeze {
+                        address
                     });
                 }
             }

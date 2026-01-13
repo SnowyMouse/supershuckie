@@ -3,6 +3,7 @@ use crate::{std_timestamp_provider, ReplayPlayerAttachError, Speed};
 use crate::{SuperShuckieCore, SuperShuckieRapidFire};
 use std::borrow::ToOwned;
 use std::boxed::Box;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::string::String;
 use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
@@ -14,9 +15,10 @@ use std::format;
 
 #[cfg(feature = "pokeabyte")]
 use supershuckie_pokeabyte_integration::PokeAByteIntegrationServer;
+use supershuckie_pokeabyte_integration::PokeAByteWriteCommand;
 use supershuckie_replay_recorder::replay_file::playback::ReplayFilePlayer;
 use supershuckie_replay_recorder::replay_file::record::ReplayFileWriteError;
-use supershuckie_replay_recorder::UnsignedInteger;
+use supershuckie_replay_recorder::{ByteVec, UnsignedInteger};
 
 /// A (mostly) non-blocking, threaded wrapper for [`SuperShuckieCore`].
 pub struct ThreadedSuperShuckieCore {
@@ -73,6 +75,7 @@ impl ThreadedSuperShuckieCore {
                     delta_replay_frames,
                     replay_errors,
                     playback_frozen: false,
+                    freezes: BTreeMap::new()
                 }.run_thread();
             });
         }
@@ -343,7 +346,9 @@ struct ThreadedSuperShuckieCoreThread {
     receiver: Receiver<ThreadCommand>,
     is_running: bool,
     pokeabyte_integration: Option<PokeAByteIntegrationServer>,
-    sender_close: Sender<()>
+    sender_close: Sender<()>,
+
+    freezes: BTreeMap<u64, ByteVec>
 }
 
 impl ThreadedSuperShuckieCoreThread {
@@ -497,7 +502,21 @@ impl ThreadedSuperShuckieCoreThread {
         };
 
         for write in &mut session.writes {
-            self.core.enqueue_write(write.address as u32, write.data);
+            match write {
+                PokeAByteWriteCommand::Write { address, data } => {
+                    self.core.enqueue_write(address as u32, data);
+                },
+                PokeAByteWriteCommand::Freeze { address, data } => {
+                    self.freezes.insert(address, data);
+                },
+                PokeAByteWriteCommand::Unfreeze { address } => {
+                    self.freezes.remove(&address);
+                }
+            }
+        }
+
+        for (address, data) in &self.freezes {
+            self.core.enqueue_write(*address as u32, data.clone());
         }
 
         // don't update reads mid-frame; it's too slow
