@@ -21,7 +21,7 @@ pub enum Instruction {
     Close = 0xFF
 }
 
-pub const METADATA_HEADER_SIZE: usize = 8;
+pub const METADATA_HEADER_SIZE: usize = 32;
 
 #[derive(Copy, Clone, Debug)]
 pub struct MetadataHeader {
@@ -41,7 +41,12 @@ impl MetadataHeader {
     }
 
     pub const fn into_bytes(self) -> [u8; METADATA_HEADER_SIZE] {
-        [PROTOCOL_VERSION, 0, 0, 0, self.instruction as u8, self.is_response as u8, 0, 0]
+        [
+            PROTOCOL_VERSION, 0, 0, 0, self.instruction as u8, self.is_response as u8, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+        ]
     }
 
     pub fn from_client_bytes(bytes: [u8; METADATA_HEADER_SIZE]) -> Result<Self, PokeAByteError> {
