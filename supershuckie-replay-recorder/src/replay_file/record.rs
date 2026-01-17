@@ -327,6 +327,7 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
             return Ok(())
         }
 
+        self.current_speed = speed;
         self.write_packet_data(&Packet::ChangeSpeed { speed })
     }
 
