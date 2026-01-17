@@ -6,6 +6,7 @@
 #include <vector>
 #include <memory>
 #include <QTimer>
+#include <map>
 
 #include <supershuckie/control_settings.h>
 
@@ -21,16 +22,20 @@ class ControlSettingsSetting;
 class ControlsSettingsWindow : public QDialog {
     Q_OBJECT;
     friend ControlSettingsSetting;
+    friend MainWindow;
 public:
-    ControlsSettingsWindow(MainWindow *parent, SuperShuckieControlSettingsRaw *settings);
+    typedef std::map<std::uint8_t, std::pair<const char *, std::unique_ptr<SuperShuckieControlSettingsRaw, decltype(&supershuckie_control_settings_free)>>> SettingsMap;
+    ControlsSettingsWindow(MainWindow *parent, SettingsMap settings);
     int exec() override;
 private:
     std::vector<ControlSettingsSetting *> edit_boxes;
     MainWindow *parent;
-    std::unique_ptr<SuperShuckieControlSettingsRaw, decltype(&supershuckie_control_settings_free)> settings;
+    SettingsMap settings;
+    SuperShuckieControlSettingsRaw *current_settings = nullptr;
     const char *ss_device_name();
     std::string ss_device_back;
     QTimer ticker;
+    QComboBox *selected_emulator;
     QComboBox *selected_device;
     void tick();
 private slots:

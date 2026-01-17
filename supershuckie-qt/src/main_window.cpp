@@ -1025,13 +1025,27 @@ void MainWindow::stop_timer() {
 }
 
 void MainWindow::do_open_controls_settings_dialog() noexcept {
-    auto *settings_struct = supershuckie_frontend_get_control_settings(this->frontend);
-    auto *settings = new ControlsSettingsWindow(this, settings_struct);
+    ControlsSettingsWindow::SettingsMap settings_structs;
+    const char *name = nullptr;
+    for(std::uint8_t i = 0; i < 255 && (name = supershuckie_frontend_get_emulator_type_name(i)) != nullptr; i++) {
+        if(supershuckie_frontend_emulator_type_uses_shared_config(i)) {
+            continue;
+        }
+
+        auto *settings_struct = supershuckie_frontend_get_control_settings(this->frontend, i);
+        std::unique_ptr<SuperShuckieControlSettingsRaw, decltype(&supershuckie_control_settings_free)> settings_struct_managed(settings_struct, supershuckie_control_settings_free);
+        auto pair = std::pair(name, std::move(settings_struct_managed));
+        settings_structs.emplace(i, std::move(pair));
+    }
+
+    auto *settings = new ControlsSettingsWindow(this, std::move(settings_structs));
 
     if(settings->exec() == QDialog::Accepted) {
-        supershuckie_frontend_set_control_settings(this->frontend, settings_struct);
+        for(auto &entry : settings->settings) {
+            supershuckie_frontend_set_control_settings(this->frontend, entry.second.second.get(), entry.first);
+        }
     }
-    
+
     delete settings;
 }
 

@@ -1,5 +1,5 @@
 use crate::util::UTF8CString;
-use crate::SETTINGS_FILE;
+use crate::{SuperShuckieEmulatorType, SETTINGS_FILE};
 use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -61,9 +61,6 @@ pub struct Settings {
 
     #[serde(default = "NintendoDSSettings::default")]
     pub nintendo_ds_settings: NintendoDSSettings,
-
-    #[serde(default = "Controls::default")]
-    pub controls: Controls,
 
     #[serde(default = "BTreeMap::default")]
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
@@ -207,7 +204,10 @@ pub struct GameBoySettings {
     pub sgb: bool,
 
     #[serde(default = "GameBoySettings::DEFAULT_VIDEO_SCALE")]
-    pub video_scale: NonZeroU8
+    pub video_scale: NonZeroU8,
+
+    #[serde(default = "Controls::default")]
+    pub controls: Controls
 }
 
 impl GameBoySettings {
@@ -219,7 +219,8 @@ impl Default for GameBoySettings {
         Self {
             gbc_mode: GameBoyMode::default(),
             sgb: false,
-            video_scale: Self::DEFAULT_VIDEO_SCALE()
+            video_scale: Self::DEFAULT_VIDEO_SCALE(),
+            controls: Controls::default()
         }
     }
 }
@@ -227,7 +228,10 @@ impl Default for GameBoySettings {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct GameBoyAdvanceSettings {
     #[serde(default = "GameBoyAdvanceSettings::DEFAULT_VIDEO_SCALE")]
-    pub video_scale: NonZeroU8
+    pub video_scale: NonZeroU8,
+
+    #[serde(default = "Controls::default")]
+    pub controls: Controls
 }
 
 impl GameBoyAdvanceSettings {
@@ -237,7 +241,8 @@ impl GameBoyAdvanceSettings {
 impl Default for GameBoyAdvanceSettings {
     fn default() -> Self {
         Self {
-            video_scale: Self::DEFAULT_VIDEO_SCALE()
+            video_scale: Self::DEFAULT_VIDEO_SCALE(),
+            controls: Controls::default()
         }
     }
 }
@@ -251,7 +256,10 @@ pub struct NintendoDSSettings {
     pub jit: bool,
 
     #[serde(default = "NintendoDSSettings::DEFAULT_VIDEO_SCALE")]
-    pub video_scale: NonZeroU8
+    pub video_scale: NonZeroU8,
+
+    #[serde(default = "Controls::default")]
+    pub controls: Controls
 }
 
 impl NintendoDSSettings {
@@ -263,7 +271,8 @@ impl Default for NintendoDSSettings {
         Self {
             date: NintendoDSDate::default(),
             jit: false,
-            video_scale: Self::DEFAULT_VIDEO_SCALE()
+            video_scale: Self::DEFAULT_VIDEO_SCALE(),
+            controls: Controls::default()
         }
     }
 }
@@ -329,7 +338,7 @@ pub enum GameBoyMode {
 
 pub type ControlMap = BTreeMap<i32, ControlSetting>;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct Controls {
     #[serde(default = "BTreeMap::default")]
     pub keyboard_controls: ControlMap,
@@ -338,8 +347,8 @@ pub struct Controls {
     pub controller_controls: BTreeMap<String, ControllerSettings>
 }
 
-impl Default for Controls {
-    fn default() -> Self {
+impl Controls {
+    pub(crate) const fn new() -> Self {
         Self {
             keyboard_controls: ControlMap::new(),
             controller_controls: BTreeMap::new()
@@ -347,7 +356,13 @@ impl Default for Controls {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Default)]
+impl Default for Controls {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct ControllerSettings {
     #[serde(default = "BTreeMap::default")]
     pub buttons: ControlMap,
@@ -528,6 +543,14 @@ impl Control {
             Control::Turbo => c"Turbo",
             Control::Reset => c"Reset console",
             Control::Pause => c"Pause"
+        }
+    }
+
+    pub const fn is_available_for_emulator_type(self, emulator_type: SuperShuckieEmulatorType) -> bool {
+        match self {
+            Control::L | Control::R => matches!(emulator_type, SuperShuckieEmulatorType::NintendoDS | SuperShuckieEmulatorType::GameBoyAdvance),
+            Control::X | Control::Y => matches!(emulator_type, SuperShuckieEmulatorType::NintendoDS),
+            _ => true
         }
     }
 }

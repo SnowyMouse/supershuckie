@@ -4,7 +4,7 @@ use std::num::NonZeroU8;
 use std::ptr::null;
 use std::slice::from_raw_parts_mut;
 use supershuckie_core::emulator::{ScreenData, ScreenDataEncoding};
-use supershuckie_frontend::{ConnectedControllerIndex, SuperShuckieFrontend, SuperShuckieFrontendCallbacks, UserInput};
+use supershuckie_frontend::{ConnectedControllerIndex, SuperShuckieEmulatorType, SuperShuckieFrontend, SuperShuckieFrontendCallbacks, UserInput};
 use supershuckie_frontend::settings::{GameBoyMode, NintendoDSDate};
 use supershuckie_frontend::util::UTF8CString;
 use crate::control_settings::SuperShuckieControlSettings;
@@ -599,17 +599,21 @@ unsafe fn current_rom_or_null(frontend: &SuperShuckieFrontend, rom: *const c_cha
 
 #[unsafe(no_mangle)]
 pub extern "C" fn supershuckie_frontend_get_control_settings(
-    frontend: &SuperShuckieFrontend
+    frontend: &SuperShuckieFrontend,
+    emulator_type: u8
 ) -> *mut SuperShuckieControlSettings {
-    Box::into_raw(Box::new(SuperShuckieControlSettings(frontend.get_control_settings().clone())))
+    let Ok(emulator_type) = SuperShuckieEmulatorType::try_from(emulator_type) else { panic!("Unknown emulator_type {emulator_type}") };
+    Box::into_raw(Box::new(SuperShuckieControlSettings(frontend.get_control_settings(emulator_type).clone())))
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn supershuckie_frontend_set_control_settings(
     frontend: &mut SuperShuckieFrontend,
-    settings: &SuperShuckieControlSettings
+    settings: &SuperShuckieControlSettings,
+    emulator_type: u8
 ) {
-    frontend.set_control_settings(settings.0.clone())
+    let Ok(emulator_type) = SuperShuckieEmulatorType::try_from(emulator_type) else { panic!("Unknown emulator_type {emulator_type}") };
+    frontend.set_control_settings(settings.0.clone(), emulator_type)
 }
 
 #[unsafe(no_mangle)]
@@ -766,15 +770,35 @@ pub unsafe extern "C" fn supershuckie_frontend_get_current_data_directory(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn supershuckie_frontend_reload_core(
+pub extern "C" fn supershuckie_frontend_reload_core(
     frontend: &mut SuperShuckieFrontend
 ) {
     frontend.reload_core();
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn supershuckie_frontend_get_emulator_type(
+pub extern "C" fn supershuckie_frontend_get_emulator_type(
     frontend: &SuperShuckieFrontend
 ) -> c_int {
     frontend.get_emulator_type().map(|i| i as c_int).unwrap_or(-1)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_get_emulator_type_name(
+    emulator_type: u8
+) -> *const c_char {
+    match SuperShuckieEmulatorType::try_from(emulator_type) {
+        Ok(n) => n.name_cstr().as_ptr(),
+        _ => null()
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_emulator_type_uses_shared_config(
+    emulator_type: u8
+) -> bool {
+    match SuperShuckieEmulatorType::try_from(emulator_type) {
+        Ok(n) => n.uses_shared_config(),
+        _ => false
+    }
 }

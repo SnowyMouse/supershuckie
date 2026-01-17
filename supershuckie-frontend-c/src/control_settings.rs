@@ -2,6 +2,7 @@ use std::ffi::{c_char, CStr};
 use std::ptr::null;
 use std::slice::from_raw_parts_mut;
 use supershuckie_frontend::settings::{Control, ControlModifier, ControlSetting, ControllerSettings, Controls};
+use supershuckie_frontend::SuperShuckieEmulatorType;
 
 pub struct SuperShuckieControlSettings(pub Controls);
 
@@ -134,6 +135,16 @@ pub unsafe extern "C" fn supershuckie_control_settings_set_control_for_device(
     };
 
     map.insert(code, ControlSetting { control, modifier });
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_control_settings_is_control_available_for_emulator_type(
+    control: u32,
+    emulator_type: u8
+) -> bool {
+    let Ok(control) = Control::try_from(control) else { panic!("Unknown control {control}") };
+    let Ok(emulator_type) = SuperShuckieEmulatorType::try_from(emulator_type) else { panic!("Unknown emulator_type {emulator_type}") };
+    control.is_available_for_emulator_type(emulator_type)
 }
 
 #[unsafe(no_mangle)]

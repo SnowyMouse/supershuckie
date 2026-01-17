@@ -95,6 +95,14 @@ void supershuckie_control_settings_set_control_for_device(
 );
 
 /**
+ * Return true if the control is available for the given emulator type
+ */
+bool supershuckie_control_settings_is_control_available_for_emulator_type(
+    uint32_t control,
+    uint8_t emulator_type
+);
+
+/**
  * Free the settings map.
  *
  * Safety:

@@ -448,12 +448,24 @@ struct SuperShuckieStringArrayRaw *supershuckie_frontend_get_all_saves_for_rom(c
  *
  * This pointer must be freed with supershuckie_control_settings_free to avoid memory leaks.
  */
-SuperShuckieControlSettingsRaw *supershuckie_frontend_get_control_settings(const struct SuperShuckieFrontendRaw *frontend);
+SuperShuckieControlSettingsRaw *supershuckie_frontend_get_control_settings(const struct SuperShuckieFrontendRaw *frontend, uint8_t emulator_type);
 
 /**
  * Overwrite the control settings.
  */
-void supershuckie_frontend_set_control_settings(struct SuperShuckieFrontendRaw *frontend, const SuperShuckieControlSettingsRaw *settings);
+void supershuckie_frontend_set_control_settings(struct SuperShuckieFrontendRaw *frontend, const SuperShuckieControlSettingsRaw *settings, uint8_t emulator_type);
+
+/**
+ * Get the name of the emulator type.
+ *
+ * Returns null if the emulator type is not valid.
+ */
+const char *supershuckie_frontend_get_emulator_type_name(uint8_t emulator_type);
+
+/**
+ * Return true if the emulator type shares another system's config.
+ */
+bool supershuckie_frontend_emulator_type_uses_shared_config(uint8_t emulator_type);
 
 /**
  * Get a list of all controllers.

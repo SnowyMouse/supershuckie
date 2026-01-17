@@ -5,12 +5,15 @@ use std::collections::BTreeMap;
 use crate::settings::*;
 use crate::util::UTF8CString;
 use std::ffi::CStr;
+use std::fmt::Formatter;
 use std::fs::File;
+use std::hint::unreachable_unchecked;
 use std::io::Write;
 use std::num::{NonZeroU64, NonZeroU8};
 use std::path::{absolute, Path, PathBuf};
 use std::sync::Arc;
 use std::io::BufWriter;
+use num_enum::TryFromPrimitive;
 use supershuckie_core::emulator::{EmulatorCore, GameBoyColor, Input, Model, PartialReplayRecordMetadata, ScreenData, NullEmulatorCore, NintendoDS, GameBoyAdvance};
 use supershuckie_core::{std_timestamp_provider, ReplayPlayerAttachError, Speed, SuperShuckieRapidFire, ThreadedSuperShuckieCore};
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash, ReplayPatchFormat};
@@ -25,8 +28,8 @@ const REPLAY_EXTENSION: &str = "replay";
 
 pub type ConnectedControllerIndex = u32;
 
-#[derive(Copy, Clone, PartialEq, Debug)]
-#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug, TryFromPrimitive)]
+#[repr(u8)]
 pub enum SuperShuckieEmulatorType {
     GameBoy,
     GameBoySGB2,
@@ -34,6 +37,50 @@ pub enum SuperShuckieEmulatorType {
     GameBoyAdvance,
     NintendoDS
 }
+
+impl SuperShuckieEmulatorType {
+    /// Return true if this uses a shared config with another system.
+    ///
+    /// Does not return true if this system owns that config.
+    pub const fn uses_shared_config(self) -> bool {
+        match self {
+            SuperShuckieEmulatorType::GameBoy => false,
+            SuperShuckieEmulatorType::GameBoySGB2 => true,
+            SuperShuckieEmulatorType::GameBoyColor => true,
+            SuperShuckieEmulatorType::GameBoyAdvance => false,
+            SuperShuckieEmulatorType::NintendoDS => false,
+        }
+    }
+
+    /// Get the human-readable name.
+    #[inline]
+    pub const fn name(self) -> &'static str {
+        match self.name_cstr().to_str() {
+            Ok(n) => n,
+            Err(_) => unsafe { unreachable_unchecked() }
+        }
+    }
+
+    /// Get the human-readable name as a C string.
+    pub const fn name_cstr(self) -> &'static CStr {
+        match self {
+            SuperShuckieEmulatorType::GameBoy => c"Game Boy",
+            SuperShuckieEmulatorType::GameBoySGB2 => c"Super Game Boy 2",
+            SuperShuckieEmulatorType::GameBoyColor => c"Game Boy Color",
+            SuperShuckieEmulatorType::GameBoyAdvance => c"Game Boy Advance",
+            SuperShuckieEmulatorType::NintendoDS => c"Nintendo DS"
+        }
+    }
+}
+
+impl core::fmt::Display for SuperShuckieEmulatorType {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+
 
 pub enum UserInput {
     Keyboard { keycode: i32 },
@@ -43,7 +90,7 @@ pub enum UserInput {
 
 pub struct SuperShuckieFrontend {
     core: ThreadedSuperShuckieCore,
-    core_metadata: CoreMetadata,
+    emulator_type: Option<SuperShuckieEmulatorType>,
 
     callbacks: Box<dyn SuperShuckieFrontendCallbacks>,
 
@@ -83,7 +130,7 @@ impl SuperShuckieFrontend {
 
         let mut s = Self {
             core: ThreadedSuperShuckieCore::new(Box::new(NullEmulatorCore)),
-            core_metadata: CoreMetadata { emulator_type: None },
+            emulator_type: None,
             user_dir: data_dir,
             rom_name: None,
             save_file: None,
@@ -246,7 +293,7 @@ impl SuperShuckieFrontend {
             player.decompress_all_blobs();
         }
 
-        let current_emulator_type = self.core_metadata.emulator_type.expect("???? no emulator type when reloading a replay?");
+        let current_emulator_type = self.emulator_type.expect("???? no emulator type when reloading a replay?");
         let metadata = player.get_replay_metadata();
         let expected_type = match metadata.console_type {
             ReplayConsoleType::GameBoy => SuperShuckieEmulatorType::GameBoy,
@@ -359,17 +406,23 @@ impl SuperShuckieFrontend {
     }
 
     pub fn on_user_input(&mut self, input: UserInput, value: f64) {
+        let Some(mode) = self.emulator_type else {
+            return
+        };
+
+        let controls = self.get_control_settings(mode);
+
         let Some(control) = (match input {
-            UserInput::Keyboard { keycode } => self.settings.controls.keyboard_controls.get(&keycode).copied(),
+            UserInput::Keyboard { keycode } => controls.keyboard_controls.get(&keycode).copied(),
             UserInput::Button { button, controller } => {
                 self.connected_controllers.get(&controller)
-                    .and_then(|i| self.settings.controls.controller_controls.get(i.as_str()))
+                    .and_then(|i| controls.controller_controls.get(i.as_str()))
                     .and_then(|i| i.buttons.get(&button))
                     .copied()
             }
             UserInput::Axis { axis, controller } => {
                 self.connected_controllers.get(&controller)
-                    .and_then(|i| self.settings.controls.controller_controls.get(i.as_str()))
+                    .and_then(|i| controls.controller_controls.get(i.as_str()))
                     .and_then(|i| i.axis.get(&axis))
                     .copied()
             }
@@ -492,7 +545,7 @@ impl SuperShuckieFrontend {
         self.close_rom();
         self.loaded_rom_data = Some(data);
         self.rom_name = Some(Arc::new(UTF8CString::from_str(filename)));
-        self.core_metadata.emulator_type = Some(emulator_to_use);
+        self.emulator_type = Some(emulator_to_use);
         self.save_file = Some(Arc::new(self.get_current_save_file_name_for_rom(filename)));
         self.reload_core();
 
@@ -517,14 +570,22 @@ impl SuperShuckieFrontend {
 
     /// Get the control settings.
     #[inline]
-    pub fn get_control_settings(&self) -> &Controls {
-        &self.settings.controls
+    pub fn get_control_settings(&self, emulator_type: SuperShuckieEmulatorType) -> &Controls {
+        match emulator_type {
+            SuperShuckieEmulatorType::GameBoySGB2 | SuperShuckieEmulatorType::GameBoyColor | SuperShuckieEmulatorType::GameBoy => &self.settings.game_boy_settings.controls,
+            SuperShuckieEmulatorType::GameBoyAdvance => &self.settings.game_boy_advance_settings.controls,
+            SuperShuckieEmulatorType::NintendoDS => &self.settings.nintendo_ds_settings.controls
+        }
     }
 
     /// Overwrite the control settings.
     #[inline]
-    pub fn set_control_settings(&mut self, controls: Controls) {
-        self.settings.controls = controls
+    pub fn set_control_settings(&mut self, controls: Controls, emulator_type: SuperShuckieEmulatorType) {
+        *match emulator_type {
+            SuperShuckieEmulatorType::GameBoySGB2 | SuperShuckieEmulatorType::GameBoyColor | SuperShuckieEmulatorType::GameBoy => &mut self.settings.game_boy_settings.controls,
+            SuperShuckieEmulatorType::GameBoyAdvance => &mut self.settings.game_boy_advance_settings.controls,
+            SuperShuckieEmulatorType::NintendoDS => &mut self.settings.nintendo_ds_settings.controls
+        } = controls;
     }
 
     /// Hard reset the console.
@@ -578,7 +639,7 @@ impl SuperShuckieFrontend {
 
     #[inline]
     pub fn reload_core(&mut self) {
-        let emulator_type = self.core_metadata.emulator_type.expect("reload_rom_in_place with no emulator type");
+        let emulator_type = self.emulator_type.expect("reload_rom_in_place with no emulator type");
         self.instantiate_and_load_core(emulator_type);
     }
 
@@ -677,7 +738,7 @@ impl SuperShuckieFrontend {
         self.core = ThreadedSuperShuckieCore::new(Box::new(NullEmulatorCore));
         self.save_file = None;
         self.rom_name = None;
-        self.core_metadata.emulator_type = None;
+        self.emulator_type = None;
         self.current_input = Input::default();
         self.after_switch_core();
     }
@@ -728,7 +789,7 @@ impl SuperShuckieFrontend {
     /// Return `true` if a ROM is running.
     #[inline]
     pub fn is_game_running(&self) -> bool {
-        self.core_metadata.emulator_type.is_some()
+        self.emulator_type.is_some()
     }
 
     /// Calls the `refresh_screens` callback regardless of if there's a new frame.
@@ -741,7 +802,7 @@ impl SuperShuckieFrontend {
     ///
     /// This value is saved per-system.
     pub fn set_video_scale(&mut self, scale: NonZeroU8) {
-        let old_scale = match self.core_metadata.emulator_type {
+        let old_scale = match self.emulator_type {
             None => return,
             Some(n) => match n {
                 SuperShuckieEmulatorType::GameBoy
@@ -811,7 +872,7 @@ impl SuperShuckieFrontend {
         }
         self.settings.nintendo_ds_settings.jit = enabled;
 
-        if self.core_metadata.emulator_type == Some(SuperShuckieEmulatorType::NintendoDS) {
+        if self.emulator_type == Some(SuperShuckieEmulatorType::NintendoDS) {
             self.stop_recording_replay();
             self.stop_replay_playback();
 
@@ -1058,7 +1119,7 @@ impl SuperShuckieFrontend {
     }
 
     fn assert_replays_available(&self) -> Result<(), UTF8CString> {
-        let Some(emulator_type) = self.core_metadata.emulator_type else {
+        let Some(emulator_type) = self.emulator_type else {
             return Err("No ROM loaded".into());
         };
 
@@ -1113,7 +1174,7 @@ impl SuperShuckieFrontend {
     }
 
     fn update_video_mode(&mut self) {
-        let video_scale = match self.core_metadata.emulator_type {
+        let video_scale = match self.emulator_type {
             None => unsafe { NonZeroU8::new_unchecked(4) },
             Some(n) => match n {
                 SuperShuckieEmulatorType::GameBoy
@@ -1204,11 +1265,11 @@ impl SuperShuckieFrontend {
 
     #[inline]
     pub fn get_emulator_type(&self) -> Option<SuperShuckieEmulatorType> {
-        self.core_metadata.emulator_type
+        self.emulator_type
     }
 
     fn reload_game_boy_if_needed(&mut self) {
-        let current = match self.core_metadata.emulator_type {
+        let current = match self.emulator_type {
             Some(n) if matches!(n, SuperShuckieEmulatorType::GameBoy | SuperShuckieEmulatorType::GameBoyColor | SuperShuckieEmulatorType::GameBoySGB2) => n,
             _ => return
         };
@@ -1220,7 +1281,7 @@ impl SuperShuckieFrontend {
         let expected = self.choose_for_game_boy(rom.as_slice());
 
         if expected != current {
-            self.core_metadata.emulator_type = Some(expected);
+            self.emulator_type = Some(expected);
             self.reload_core();
         }
     }
@@ -1279,9 +1340,6 @@ pub struct SuperShuckieReplayTimes {
     pub total_milliseconds: u32
 }
 
-pub struct CoreMetadata {
-    pub emulator_type: Option<SuperShuckieEmulatorType>
-}
 
 /// Info of the replay file.
 pub struct ReplayFileInfo {

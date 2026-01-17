@@ -13,17 +13,37 @@
 
 using namespace SuperShuckie64;
 
-ControlsSettingsWindow::ControlsSettingsWindow(MainWindow *parent, SuperShuckieControlSettingsRaw *settings): QDialog(parent), parent(parent), settings(settings, supershuckie_control_settings_free) {
+ControlsSettingsWindow::ControlsSettingsWindow(MainWindow *parent, SettingsMap settings): QDialog(parent), parent(parent), settings(std::move(settings)) {
     this->setWindowTitle("Controls settings");
-    
+
     SuperShuckieControlType control_types = 0;
     SuperShuckieControlModifier control_modifiers = 0;
     const char *label = nullptr;
 
     auto *layout = new QGridLayout(this);
+
+    // Default to the first one
+    this->current_settings = this->settings.begin()->second.second.get();
+
+    this->selected_emulator = new QComboBox(this);
+    for(auto &kv : this->settings) {
+        this->selected_emulator->addItem(kv.second.first);
+    }
+
+    for(auto &kv : this->settings) {
+        // TODO: add a check to see if the current emulator type shares a config with the desired one
+        // (this will only happen to work as-is for now because GB/GBC/SGB2 share a config and are next to each other
+        if(kv.first == supershuckie_frontend_get_emulator_type(this->parent->frontend)) {
+            this->selected_emulator->setCurrentText(kv.second.first);
+            break;
+        }
+    }
+
+    connect(this->selected_emulator, SIGNAL(currentIndexChanged(int)), this, SLOT(update_textboxes()));
+
     this->selected_device = new QComboBox(this);
     this->selected_device->addItem("Keyboard");
-    
+
     auto devices = wrap_array_std(supershuckie_frontend_get_connected_controllers(this->parent->frontend));
     for(auto &d: devices) {
         this->selected_device->addItem(d.c_str());
@@ -37,15 +57,15 @@ ControlsSettingsWindow::ControlsSettingsWindow(MainWindow *parent, SuperShuckieC
     connect(this->selected_device, SIGNAL(currentIndexChanged(int)), this, SLOT(update_textboxes()));
 
     int control_box_y_offset = 100;
-    
+
     for(control_types = 0; (label = supershuckie_control_settings_control_name(control_types)) != nullptr; control_types++) {
         auto *name = new QLabel(label, this);
         layout->addWidget(name, control_box_y_offset + control_types + 1, 0);
     }
-    
+
     for(control_modifiers = 0; (label = supershuckie_control_settings_modifier_name(control_modifiers)) != nullptr; control_modifiers++) {
         auto *name = new QLabel(label, this);
-        
+
         int y = control_box_y_offset;
         int x = control_modifiers + 1;
         layout->addWidget(name, y, x);
@@ -73,7 +93,12 @@ ControlsSettingsWindow::ControlsSettingsWindow(MainWindow *parent, SuperShuckieC
     layout->addWidget(save, offset_for_remaining_things++, 0, 1, width_span);
     connect(save, SIGNAL(clicked()), this, SLOT(accept()));
 
-    layout->addWidget(this->selected_device, 0, 0, 1, width_span);
+    layout->addWidget(new QLabel("Core:", this), 0, 0);
+    layout->addWidget(new QLabel("Input device:", this), 1, 0);
+    layout->addWidget(this->selected_emulator, 0, 1, 1, width_span - 1);
+    layout->addWidget(this->selected_device, 1, 1, 1, width_span - 1);
+
+    layout->addWidget(new QLabel(" ", this), 5, 0);
 
     this->setFixedSize(this->sizeHint());
     this->update_textboxes();
@@ -114,7 +139,7 @@ void ControlsSettingsWindow::tick() {
 
                 for(auto &box : edit_boxes) {
                     if(box->hasFocus()) {
-                        supershuckie_control_settings_set_control_for_device(this->settings.get(), name, true, axis, box->control_type, box->control_modifier);
+                        supershuckie_control_settings_set_control_for_device(this->current_settings, name, true, axis, box->control_type, box->control_modifier);
                         this->update_textboxes();
                         break;
                     }
@@ -139,7 +164,7 @@ void ControlsSettingsWindow::tick() {
 
                 for(auto &box : edit_boxes) {
                     if(box->hasFocus()) {
-                        supershuckie_control_settings_set_control_for_device(this->settings.get(), name, false, button, box->control_type, box->control_modifier);
+                        supershuckie_control_settings_set_control_for_device(this->current_settings, name, false, button, box->control_type, box->control_modifier);
                         this->update_textboxes();
                         break;
                     }
@@ -181,7 +206,7 @@ void ControlSettingsSetting::mousePressEvent(QMouseEvent *event) {
         event->ignore();
 
         supershuckie_control_settings_clear_controls_for_device(
-            this->window->settings.get(),
+            this->window->current_settings,
             device,
             this->control_type,
             this->control_modifier
@@ -202,7 +227,7 @@ void ControlSettingsSetting::keyPressEvent(QKeyEvent *event) {
     }
 
     supershuckie_control_settings_set_control_for_device(
-        this->window->settings.get(),
+        this->window->current_settings,
         device,
         false,
         event->key(),
@@ -218,6 +243,20 @@ const char *ControlsSettingsWindow::ss_device_name() {
 }
 
 void ControlsSettingsWindow::update_textboxes() {
+    std::uint8_t current = 0xFF;
+
+    for(auto &kv : this->settings) {
+        if(this->selected_emulator->currentText() == kv.second.first) {
+            this->current_settings = kv.second.second.get();
+            current = kv.first;
+            break;
+        }
+    }
+
+    if(current == 0xFF) {
+        std::terminate();
+    }
+
     this->ss_device_back = this->selected_device->currentText().toStdString();
 
     std::vector<std::int32_t> buffer_button;
@@ -226,8 +265,10 @@ void ControlsSettingsWindow::update_textboxes() {
     auto *device = this->ss_device_name();
 
     for(ControlSettingsSetting *setting: this->edit_boxes) {
+        bool allowed = supershuckie_control_settings_is_control_available_for_emulator_type(setting->control_type, current);
+
         auto button_len = supershuckie_control_settings_get_controls_for_device(
-            this->settings.get(),
+            this->current_settings,
             device,
             false,
             setting->control_type,
@@ -237,7 +278,7 @@ void ControlsSettingsWindow::update_textboxes() {
         );
         buffer_button.resize(button_len);
         supershuckie_control_settings_get_controls_for_device(
-            this->settings.get(),
+            this->current_settings,
             device,
             false,
             setting->control_type,
@@ -248,7 +289,7 @@ void ControlsSettingsWindow::update_textboxes() {
 
         if(device != nullptr) {
             auto axis_len = supershuckie_control_settings_get_controls_for_device(
-                this->settings.get(),
+                this->current_settings,
                 device,
                 true,
                 setting->control_type,
@@ -258,7 +299,7 @@ void ControlsSettingsWindow::update_textboxes() {
             );
             buffer_axis.resize(axis_len);
             supershuckie_control_settings_get_controls_for_device(
-                this->settings.get(),
+                this->current_settings,
                 device,
                 false,
                 setting->control_type,
@@ -267,7 +308,7 @@ void ControlsSettingsWindow::update_textboxes() {
                 buffer_axis.size()
             );
         }
-        
+
         QString label;
 
         if(device == nullptr) {
@@ -317,5 +358,10 @@ void ControlsSettingsWindow::update_textboxes() {
         }
 
         setting->setText(label);
+        setting->setEnabled(allowed);
+
+        if(!allowed) {
+            setting->setText("Unused");
+        }
     }
 }
