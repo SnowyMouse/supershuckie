@@ -563,6 +563,16 @@ bool supershuckie_frontend_get_nds_jit(const struct SuperShuckieFrontendRaw *fro
 void supershuckie_frontend_set_nds_jit(struct SuperShuckieFrontendRaw *frontend, bool enabled);
 
 /**
+ * Get if speed changes from the replay should be ignored when playing back replays.
+ */
+bool supershuckie_frontend_get_ignore_speed_changes_in_replay(const struct SuperShuckieFrontendRaw *frontend);
+
+/**
+ * Set if speed changes from the replay should be ignored when playing back replays.
+ */
+void supershuckie_frontend_set_ignore_speed_changes_in_replay(struct SuperShuckieFrontendRaw *frontend, bool ignored);
+
+/**
  * Get all recent ROMs.
  *
  * The resulting string array must be freed with supershuckie_stringarray_free.

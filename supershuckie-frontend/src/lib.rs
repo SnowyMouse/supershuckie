@@ -1287,7 +1287,24 @@ impl SuperShuckieFrontend {
         list_files_in_dir_with_extension(&self.get_replays_dir_for_rom(rom), REPLAY_EXTENSION)
     }
 
+    /// Set whether or not speed changes in replays are ignored
+    #[inline]
+    pub fn set_ignore_speed_changes_in_replays(&mut self, ignored: bool) {
+        self.settings.replay.ignore_speed_changes_in_replays = ignored;
+        self.core.set_ignore_speed_changes_in_replay(ignored);
+        self.reset_speed();
+    }
+
+    /// Get whether or not speed changes in replays are ignored.
+    #[inline]
+    pub fn get_ignore_speed_changes_in_replays(&self) -> bool {
+        self.settings.replay.ignore_speed_changes_in_replays
+    }
+
     fn after_switch_core(&mut self) {
+        if self.settings.replay.ignore_speed_changes_in_replays {
+            self.core.set_ignore_speed_changes_in_replay(true);
+        }
         self.update_video_mode();
     }
 
@@ -1326,6 +1343,10 @@ impl SuperShuckieFrontend {
     }
 
     fn apply_turbo(&mut self, turbo: f64) {
+        if !self.settings.replay.ignore_speed_changes_in_replays && self.get_replay_playback_stats().is_some() {
+            return
+        }
+
         let base_speed = self.settings.emulation.base_speed_multiplier;
         let max_speed = self.settings.emulation.turbo_speed_multiplier * base_speed;
         let total_speed = base_speed + (max_speed - base_speed) * turbo;

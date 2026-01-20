@@ -821,3 +821,18 @@ pub extern "C" fn supershuckie_frontend_emulator_type_uses_shared_config(
         _ => false
     }
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_get_ignore_speed_changes_in_replay(
+    frontend: &SuperShuckieFrontend
+) -> bool {
+    frontend.get_ignore_speed_changes_in_replays()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_set_ignore_speed_changes_in_replay(
+    frontend: &mut SuperShuckieFrontend,
+    ignored: bool
+) {
+    frontend.set_ignore_speed_changes_in_replays(ignored)
+}

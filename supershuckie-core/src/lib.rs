@@ -70,10 +70,12 @@ pub struct SuperShuckieCore {
     total_milliseconds: TimestampMillis,
     paused_timer_at: Option<TimestampMillis>,
     game_speed: Speed,
+    replay_playback_speed: Speed,
 
     frames_since_last_keyframe: u64,
     frames_per_keyframe: u64,
     total_frames: u64,
+    ignore_speed_changes_in_replays: bool
 }
 
 #[derive(Clone, Debug)]
@@ -132,6 +134,7 @@ impl SuperShuckieCore {
             total_milliseconds: 0.into(),
             starting_milliseconds: timestamp_provider.get_timestamp_milliseconds().into(),
             game_speed: Default::default(),
+            replay_playback_speed: Default::default(),
             frames_since_last_keyframe: 0,
             frames_per_keyframe: 0,
             total_frames: 0,
@@ -140,7 +143,8 @@ impl SuperShuckieCore {
             paused_timer_at: None,
             replay_counters: None,
             core: emulator_core,
-            timestamp_provider
+            timestamp_provider,
+            ignore_speed_changes_in_replays: false
         }
     }
 
@@ -270,7 +274,8 @@ impl SuperShuckieCore {
                             self.core.set_input_encoded(data.as_slice());
                         }
                         Packet::ChangeSpeed { speed } => {
-                            self.set_speed(*speed);
+                            self.replay_playback_speed = *speed;
+                            self.match_replay_playback_speed();
                         }
                         Packet::ResetConsole => {
                             self.core.hard_reset();
@@ -691,8 +696,9 @@ impl SuperShuckieCore {
         self.replay_stalled = false;
         self.frames_since_last_keyframe = 0;
         self.replay_counters = Some(metadata.counters.iter().map(|c| (c.name.clone(), c.value)).collect());
+        self.replay_playback_speed = speed;
 
-        self.set_speed(speed);
+        self.match_replay_playback_speed();
 
         while self.total_frames <= desired && !self.replay_stalled {
             self.run_unlocked();
@@ -707,6 +713,20 @@ impl SuperShuckieCore {
             .as_mut()
             .map(|r| r.get_errors())
             .unwrap_or(Vec::new())
+    }
+
+    /// Set whether or not to ignore speed changes in replays
+    pub fn set_ignore_speed_changes_in_replays(&mut self, ignored: bool) {
+        self.ignore_speed_changes_in_replays = ignored;
+        if self.replay_player.is_some() {
+            self.match_replay_playback_speed();
+        }
+    }
+
+    fn match_replay_playback_speed(&mut self) {
+        if !self.ignore_speed_changes_in_replays {
+            self.set_speed(self.replay_playback_speed);
+        }
     }
 }
 

@@ -277,6 +277,7 @@ impl ThreadedSuperShuckieCore {
     }
 
     /// Go to the desired frame.
+    #[inline]
     pub fn go_to_replay_frame(&self, frame: u32) {
         // we use an AtomicU32 instead of just directly going to a frame
         // because we do not want to clog the queue with goto requests
@@ -284,6 +285,7 @@ impl ThreadedSuperShuckieCore {
     }
 
     /// Advance or go back some frames.
+    #[inline]
     pub fn advance_playback_frames(&self, amount: i32) {
         // similarly use AtomicI32 to avoid clogging the queue
         self.delta_replay_frames.store(amount, Ordering::Relaxed);
@@ -310,13 +312,21 @@ impl ThreadedSuperShuckieCore {
     }
 
     /// Get the counters.
+    #[inline]
     pub fn get_replay_counters(&self) -> BTreeMap<String, SignedInteger> {
         self.replay_counters.lock().expect("couldn't get replay counters (thread crash?)").clone()
     }
 
     /// Add an amount to a counter.
+    #[inline]
     pub fn change_replay_counter(&mut self, name: String, delta: SignedInteger) {
         let _ = self.sender.send(ThreadCommand::ChangeReplayCounter { name, delta });
+    }
+
+    /// Set whether or not speed changes from replays are ignored.
+    #[inline]
+    pub fn set_ignore_speed_changes_in_replay(&self, ignored: bool) {
+        let _ = self.sender.send(ThreadCommand::IgnoreSpeedChangesInReplay(ignored));
     }
 }
 
@@ -356,6 +366,7 @@ enum ThreadCommand {
     MarkReplayEnd(Sender<(UnsignedInteger, TimestampMillis)>),
     Close,
     ChangeReplayCounter { name: String, delta: SignedInteger },
+    IgnoreSpeedChangesInReplay(bool)
 }
 
 fn extend_counter_map(from: &BTreeMap<String, SignedInteger>, into: &mut BTreeMap<String, SignedInteger>) {
@@ -704,6 +715,9 @@ impl ThreadedSuperShuckieCoreThread {
             }
             ThreadCommand::ChangeReplayCounter { name, delta } => {
                 self.core.change_replay_counter(name, delta);
+            }
+            ThreadCommand::IgnoreSpeedChangesInReplay(ignored) => {
+                self.core.set_ignore_speed_changes_in_replays(ignored)
             }
         }
     }

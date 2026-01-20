@@ -227,6 +227,7 @@ MainWindow::MainWindow(): QMainWindow() {
     this->auto_pause_on_record->setChecked(supershuckie_frontend_get_auto_pause_on_record_setting(this->frontend));
     this->sgb_enabled->setChecked(supershuckie_frontend_is_sgb_enabled(this->frontend));
     this->nds_jit->setChecked(supershuckie_frontend_get_nds_jit(this->frontend));
+    this->ignore_speed_changes_in_replay->setChecked(supershuckie_frontend_get_ignore_speed_changes_in_replay(this->frontend));
 
     this->sdl.frontend = this->frontend;
     this->render_widget->setFocus(Qt::OtherFocusReason);
@@ -503,6 +504,10 @@ void MainWindow::set_up_replays_menu() {
     connect(this->keyboard_replay_controls, SIGNAL(triggered()), this, SLOT(do_toggle_replay_keyboard_controls()));
     this->keyboard_replay_controls->setCheckable(true);
     this->keyboard_replay_controls->setChecked(true);
+
+    this->ignore_speed_changes_in_replay = this->replays_menu->addAction("Ignore speed changes in replay");
+    connect(this->ignore_speed_changes_in_replay, SIGNAL(triggered()), this, SLOT(do_toggle_ignore_speed_changes_in_replay()));
+    this->ignore_speed_changes_in_replay->setCheckable(true);
 }
 
 NumberedAction::NumberedAction(MainWindow *parent, const char *text, std::uint8_t number, on_activated activated): QAction(text, parent), number(number), parent(parent), activated_fn(activated) {
@@ -1143,4 +1148,8 @@ void MainWindow::do_toggle_external_commands() {
     if(!supershuckie_frontend_set_external_commands_enabled(this->frontend, this->enable_external_commands->isChecked(), buf, sizeof(buf))) {
         DISPLAY_ERROR_DIALOG("Failed to start remote commands", "%s", buf);
     }
+}
+
+void MainWindow::do_toggle_ignore_speed_changes_in_replay() {
+    supershuckie_frontend_set_ignore_speed_changes_in_replay(this->frontend, this->ignore_speed_changes_in_replay->isChecked());
 }
