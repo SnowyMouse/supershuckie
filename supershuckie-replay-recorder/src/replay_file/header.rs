@@ -12,8 +12,13 @@ pub const SIGNATURE_START: [u8; 4] = 0x4E49444Fu32.to_be_bytes();
 /// Signature end (all replay headers must end with this)
 pub const SIGNATURE_END: [u8; 4] = 0x52494E41u32.to_be_bytes();
 
-/// Replay format version
-pub const REPLAY_VERSION: u32 = 2;
+/// Replay format version (minimum supported)
+pub const REPLAY_VERSION_MINIMUM_SUPPORTED: u32 = 2;
+
+/// Replay format version (written version)
+pub const REPLAY_VERSION: u32 = 3;
+
+// FIXME: How do we handle resuming?
 
 /// Blake3 checksum
 pub type ReplayHeaderBlake3Hash = [u8; 32];
@@ -183,8 +188,8 @@ impl ReplayHeaderRaw {
         if signature_end != SIGNATURE_END {
             return Err(format!("Unrecognized signature_end {signature_end:X?}"));
         }
-        if self.replay_version != REPLAY_VERSION {
-            return Err(format!("Unrecognized replay format version {replay_version}"));
+        if self.replay_version < REPLAY_VERSION_MINIMUM_SUPPORTED || self.replay_version > REPLAY_VERSION {
+            return Err(format!("Unrecognized replay format version {replay_version} (not in {REPLAY_VERSION_MINIMUM_SUPPORTED}..={REPLAY_VERSION})"));
         }
 
         fn parse_string_buffer(what: &ReplayHeaderString, name: &str) -> Result<String, String> {

@@ -18,7 +18,7 @@ use supershuckie_pokeabyte_integration::PokeAByteIntegrationServer;
 use supershuckie_pokeabyte_integration::PokeAByteEmulatorCommand;
 use supershuckie_replay_recorder::replay_file::playback::ReplayFilePlayer;
 use supershuckie_replay_recorder::replay_file::record::ReplayFileWriteError;
-use supershuckie_replay_recorder::{ByteVec, TimestampMillis, UnsignedInteger};
+use supershuckie_replay_recorder::{ByteVec, SignedInteger, TimestampMillis, UnsignedInteger};
 
 /// A (mostly) non-blocking, threaded wrapper for [`SuperShuckieCore`].
 pub struct ThreadedSuperShuckieCore {
@@ -33,7 +33,8 @@ pub struct ThreadedSuperShuckieCore {
     playback: bool,
     playback_total_frames: UnsignedInteger,
     playback_total_milliseconds: TimestampMillis,
-    replay_errors: Arc<Mutex<Vec<ReplayFileWriteError>>>
+    replay_errors: Arc<Mutex<Vec<ReplayFileWriteError>>>,
+    replay_counters: Arc<Mutex<BTreeMap<String, SignedInteger>>>
 }
 
 /// Current elapsed time, retrieved atomically (the frame count corresponds to milliseconds and vice versa).
@@ -57,6 +58,7 @@ impl ThreadedSuperShuckieCore {
         let desired_replay_frame = Arc::new(AtomicU32::new(u32::MAX));
         let delta_replay_frames = Arc::new(AtomicI32::new(0));
         let replay_errors = Arc::new(Mutex::new(Vec::new()));
+        let replay_counters = Arc::new(Mutex::new(BTreeMap::new()));
 
         let elapsed_time = Arc::new(RwLock::new(ElapsedTimeStats::default()));
 
@@ -66,6 +68,7 @@ impl ThreadedSuperShuckieCore {
             let desired_replay_frame = desired_replay_frame.clone();
             let delta_replay_frames = delta_replay_frames.clone();
             let replay_errors = replay_errors.clone();
+            let replay_counters = replay_counters.clone();
             let _ = std::thread::Builder::new().name("ThreadedSuperShuckieCore".to_owned()).spawn(move || {
                 ThreadedSuperShuckieCoreThread {
                     screens,
@@ -80,6 +83,7 @@ impl ThreadedSuperShuckieCore {
                     elapsed_time,
                     delta_replay_frames,
                     replay_errors,
+                    replay_counters,
                     playback_frozen: false,
                     freezes: BTreeMap::new()
                 }.run_thread();
@@ -94,6 +98,7 @@ impl ThreadedSuperShuckieCore {
             playback_total_milliseconds,
             replay_errors,
             elapsed_time,
+            replay_counters,
             playback: false,
             desired_replay_frame,
             delta_replay_frames
@@ -303,6 +308,16 @@ impl ThreadedSuperShuckieCore {
         let _ = self.sender.send(ThreadCommand::MarkReplayEnd(sender));
         receiver.recv().map_err(|_| ())
     }
+
+    /// Get the counters.
+    pub fn get_replay_counters(&self) -> BTreeMap<String, SignedInteger> {
+        self.replay_counters.lock().expect("couldn't get replay counters (thread crash?)").clone()
+    }
+
+    /// Add an amount to a counter.
+    pub fn change_replay_counter(&mut self, name: String, delta: SignedInteger) {
+        let _ = self.sender.send(ThreadCommand::ChangeReplayCounter { name, delta });
+    }
 }
 
 impl Drop for ThreadedSuperShuckieCore {
@@ -339,7 +354,21 @@ enum ThreadCommand {
     SaveSRAM(Sender<Vec<u8>>),
     MarkReplayStart(Sender<(UnsignedInteger, TimestampMillis)>),
     MarkReplayEnd(Sender<(UnsignedInteger, TimestampMillis)>),
-    Close
+    Close,
+    ChangeReplayCounter { name: String, delta: SignedInteger },
+}
+
+fn extend_counter_map(from: &BTreeMap<String, SignedInteger>, into: &mut BTreeMap<String, SignedInteger>) {
+    into.retain(|k,_| from.contains_key(k));
+
+    for (k, v) in from {
+        if let Some(v2) = into.get_mut(k) {
+            *v2 = *v;
+        }
+        else {
+            into.insert(k.to_owned(), *v);
+        }
+    }
 }
 
 struct ThreadedSuperShuckieCoreThread {
@@ -350,6 +379,7 @@ struct ThreadedSuperShuckieCoreThread {
     desired_replay_frame: Arc<AtomicU32>,
     delta_replay_frames: Arc<AtomicI32>,
     replay_errors: Arc<Mutex<Vec<ReplayFileWriteError>>>,
+    replay_counters: Arc<Mutex<BTreeMap<String, SignedInteger>>>,
     playback_frozen: bool,
 
     core: SuperShuckieCore,
@@ -395,6 +425,8 @@ impl ThreadedSuperShuckieCoreThread {
                 // sleep for a reduced time so seeking can still be responsive
                 std::thread::sleep(Duration::from_millis(10));
             }
+
+            self.update_counters();
         }
 
         self.core.stop_recording_replay();
@@ -418,6 +450,14 @@ impl ThreadedSuperShuckieCoreThread {
 
         // We aren't really too focused on smooth playback as opposed to updating the buffer now!
         self.force_refresh_screen_data();
+    }
+
+    fn update_counters(&mut self) {
+        let Some(c) = self.core.get_replay_counters() else {
+            self.replay_counters.lock().expect("can't get replay counters to clear").clear();
+            return;
+        };
+        extend_counter_map(c, &mut self.replay_counters.lock().expect("can't get replay counters"));
     }
 
     /// If the mutex was blocked, we can copy it in when it's no longer blocked.
@@ -661,6 +701,9 @@ impl ThreadedSuperShuckieCoreThread {
                 if let Some(n) = self.core.mark_end() {
                     let _ = timestamp.send(n);
                 }
+            }
+            ThreadCommand::ChangeReplayCounter { name, delta } => {
+                self.core.change_replay_counter(name, delta);
             }
         }
     }

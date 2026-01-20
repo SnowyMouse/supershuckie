@@ -3,7 +3,7 @@
 //! See [`ReplayFileRecorder`] and [`NonBlockingReplayFileRecorder`].
 
 use crate::replay_file::{ReplayFileMetadata, ReplayHeaderBytes, ReplayHeaderRaw};
-use crate::{BookmarkMetadata, ByteVec, InputBuffer, KeyframeMetadata, Packet, PacketIO, PacketWriteCommand, Speed, TimestampMillis, UnsignedInteger};
+use crate::{BookmarkMetadata, ByteVec, Counter, InputBuffer, KeyframeMetadata, Packet, PacketIO, PacketWriteCommand, SignedInteger, Speed, TimestampMillis, UnsignedInteger};
 use alloc::string::String;
 use alloc::borrow::Cow;
 use alloc::vec::Vec;
@@ -28,6 +28,7 @@ use std::{
     io::{Seek, SeekFrom, Write},
     fs::File
 };
+use std::collections::BTreeMap;
 use crate::util::fast_diff;
 
 /// Records a replay file
@@ -56,6 +57,8 @@ pub struct ReplayFileRecorder<Final: ReplayFileSink, Temp: ReplayFileSink> {
 
     sink: Option<SinkTuple<Final, Temp>>,
     header: ReplayHeaderRaw,
+
+    counters: BTreeMap<String, SignedInteger>,
 
     poisoned: bool
 }
@@ -135,6 +138,7 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
             current_blob_size_undiffed: 0,
             header: metadata,
             last_state_to_diff: None,
+            counters: BTreeMap::new(),
             sink: Some(SinkTuple {
                 final_sink, temp_sink
             })
@@ -230,6 +234,10 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
             speed: self.current_speed,
             elapsed_frames: self.elapsed_frames,
             elapsed_millis,
+            counters: self.counters.iter().map(|i| Counter {
+                name: i.0.clone(),
+                value: *i.1
+            }).collect()
         };
 
         self.current_blob_keyframes.push(metadata.clone());
@@ -403,6 +411,21 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
             let (final_sink, temp_sink) = f.get_sinks();
             temp_sink.overwrite_header(&header_bytes)?;
             final_sink.overwrite_header(&header_bytes)?;
+            Ok(())
+        })
+    }
+
+    /// Modify the counter.
+    pub fn change_counter(&mut self, name: String, delta: SignedInteger) -> Result<(), ReplayFileWriteError> {
+        self.do_with_poison(|f| {
+            if let Some(v) = f.counters.get_mut(&name) {
+                *v = v.wrapping_add(delta);
+            }
+            else {
+                f.counters.insert(name.clone(), delta);
+            }
+
+            f.write_packet_unchecked(&Packet::IncrementCounter { name, delta })?;
             Ok(())
         })
     }
@@ -601,6 +624,7 @@ pub trait ReplayFileRecorderFns: core::any::Any + 'static + Send {
     fn get_errors(&mut self) -> Vec<ReplayFileWriteError>;
     fn mark_start(&mut self) -> Result<(), ReplayFileWriteError>;
     fn mark_end(&mut self) -> Result<(), ReplayFileWriteError>;
+    fn change_counter(&mut self, counter: String, delta: SignedInteger) -> Result<(), ReplayFileWriteError>;
 }
 
 impl<Final: ReplayFileSink + 'static + Send, Temp: ReplayFileSink + 'static + Send> ReplayFileRecorderFns for ReplayFileRecorder<Final, Temp> {
@@ -670,6 +694,11 @@ impl<Final: ReplayFileSink + 'static + Send, Temp: ReplayFileSink + 'static + Se
     #[inline]
     fn mark_end(&mut self) -> Result<(), ReplayFileWriteError> {
         self.mark_end()
+    }
+
+    #[inline]
+    fn change_counter(&mut self, counter: String, delta: SignedInteger) -> Result<(), ReplayFileWriteError> {
+        self.change_counter(counter, delta)
     }
 }
 

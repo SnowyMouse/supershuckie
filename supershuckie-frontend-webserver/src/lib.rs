@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -46,6 +47,26 @@ impl SuperShuckieWebserver {
                         _ => Response::empty_404()
                     }
                 },
+                "/increment-counter" => {
+                    if let Some(name) = request.get_param("name") {
+                        if let Some(by) = request.get_param("by") {
+                            if let Ok(by) = by.parse::<i64>() {
+                                let _ = backlog_sender.send(SuperShuckieServerCommand::IncrementCounter(name, by));
+                                Response::empty_204()
+                            }
+                            else {
+                                Response::empty_400()
+                            }
+                        }
+                        else {
+                            let _ = backlog_sender.send(SuperShuckieServerCommand::IncrementCounter(name, 1));
+                            Response::empty_204()
+                        }
+                    }
+                    else {
+                        Response::empty_400()
+                    }
+                }
                 _ => Response::empty_400()
             }.with_unique_header("Access-Control-Allow-Origin", "*")
         }).map_err(|e| format!("Failed to make SuperShuckieServer:\n\n{e}"))?;
@@ -83,10 +104,11 @@ impl Drop for SuperShuckieWebserver {
 pub enum SuperShuckieServerCommand {
     Stats(Sender<Stats>),
     MarkStart(Sender<bool>),
-    MarkEnd(Sender<bool>)
+    MarkEnd(Sender<bool>),
+    IncrementCounter(String, i64)
 }
 
-#[derive(Copy, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Stats {
     pub time_start: Option<u32>,
     pub time_end: Option<u32>,
@@ -97,6 +119,9 @@ pub struct Stats {
 
     pub is_recording: bool,
     pub is_playing_back: bool,
+    pub is_paused: bool,
+
+    pub counters: BTreeMap<String, i64>,
     
     pub current_speed: f64
 }

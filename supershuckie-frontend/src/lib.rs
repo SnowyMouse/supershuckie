@@ -18,7 +18,7 @@ use supershuckie_core::emulator::{EmulatorCore, GameBoyColor, Input, Model, Part
 use supershuckie_core::{std_timestamp_provider, ElapsedTimeStats, ReplayPlayerAttachError, Speed, SuperShuckieRapidFire, ThreadedSuperShuckieCore};
 use supershuckie_frontend_webserver::{Stats, SuperShuckieServerCommand, SuperShuckieWebserver};
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash, ReplayPatchFormat};
-use supershuckie_replay_recorder::{ByteVec, TimestampMillis, UnsignedInteger};
+use supershuckie_replay_recorder::{ByteVec, SignedInteger, TimestampMillis, UnsignedInteger};
 use supershuckie_replay_recorder::replay_file::playback::ReplayFilePlayer;
 use supershuckie_replay_recorder::replay_file::record::ReplayFileRecorderSettings;
 
@@ -244,6 +244,18 @@ impl SuperShuckieFrontend {
         else {
             Err(())
         }
+    }
+
+    /// Change the given replay counter, adding delta.
+    #[inline]
+    pub fn change_replay_counter(&mut self, counter: String, delta: SignedInteger) {
+        self.core.change_replay_counter(counter, delta);
+    }
+
+    /// Get all replay counters.
+    #[inline]
+    pub fn get_replay_counters(&self) -> BTreeMap<String, SignedInteger> {
+        self.core.get_replay_counters()
     }
 
     fn load_file_or_make_generic(&mut self, dir: &Path, name: Option<&str>, generic_prefix: Option<&str>, extension: &str) -> Result<(File, String, PathBuf), UTF8CString> {
@@ -993,6 +1005,7 @@ impl SuperShuckieFrontend {
         if let Some(mut s) = self.web_server.take() {
             fn make_stats(what: &SuperShuckieFrontend) -> Stats {
                 let replay_state = what.get_replay_state();
+                let counters = what.get_replay_counters();
 
                 // use cached to avoid DoSing the emulator lol
                 let stats = what.last_read_elapsed_time_stats;
@@ -1022,7 +1035,9 @@ impl SuperShuckieFrontend {
                     total_elapsed_frames: stats.frames,
                     is_playing_back: replay_state == SuperShuckieReplayState::Playback,
                     is_recording: replay_state == SuperShuckieReplayState::Recording,
-                    current_speed: stats.speed.into_multiplier_float()
+                    current_speed: stats.speed.into_multiplier_float(),
+                    counters,
+                    is_paused: what.is_paused(),
                 }
             }
 
@@ -1036,6 +1051,9 @@ impl SuperShuckieFrontend {
                     }
                     SuperShuckieServerCommand::MarkEnd(t) => {
                         let _ = t.send(self.mark_replay_end().is_ok());
+                    }
+                    SuperShuckieServerCommand::IncrementCounter(name, counter) => {
+                        self.change_replay_counter(name, counter);
                     }
                 }
             }

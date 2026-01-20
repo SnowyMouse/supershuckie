@@ -12,6 +12,8 @@ pub use io::*;
 pub type InputBuffer = TinyVec<[u8; 16]>;
 #[allow(missing_docs)]
 pub type UnsignedInteger = u64;
+#[allow(missing_docs)]
+pub type SignedInteger = i64;
 
 #[derive(Copy, Clone, PartialEq, Debug, Default, Ord, Eq)]
 #[repr(transparent)]
@@ -40,14 +42,11 @@ impl From<u64> for TimestampMillis {
 }
 
 impl PacketIO<'_> for TimestampMillis {
-    fn name(&self) -> &'static str {
-        "milliseconds"
-    }
     fn write_packet_instructions(&self) -> PacketInstructionsVec<'_> {
         self.0.write_packet_instructions()
     }
-    fn read_all(from: &mut &[u8]) -> Result<Self, PacketReadError> {
-        Ok(Self(UnsignedInteger::read_all(from)?))
+    fn read_all(from: &mut &[u8], version: u32) -> Result<Self, PacketReadError> {
+        Ok(Self(UnsignedInteger::read_all(from, version)?))
     }
 }
 
@@ -119,6 +118,13 @@ pub enum Packet {
         timestamp_end: TimestampMillis,
         elapsed_frames_start: UnsignedInteger,
         elapsed_frames_end: UnsignedInteger
+    },
+
+    /// Modifies a counter
+    #[allow(missing_docs)]
+    IncrementCounter {
+        name: String,
+        delta: SignedInteger
     }
 }
 
@@ -165,7 +171,10 @@ pub struct KeyframeMetadata {
     pub elapsed_frames: UnsignedInteger,
 
     /// Total elapsed milliseconds
-    pub elapsed_millis: TimestampMillis
+    pub elapsed_millis: TimestampMillis,
+
+    /// Counters thus far
+    pub counters: Vec<Counter>
 }
 
 /// Payload for bookmarks
@@ -179,4 +188,14 @@ pub struct BookmarkMetadata {
 
     /// Total elapsed milliseconds
     pub elapsed_millis: TimestampMillis
+}
+
+/// Counter data
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct Counter {
+    /// Name of the counter.
+    pub name: String,
+
+    /// Value of the counter
+    pub value: SignedInteger
 }

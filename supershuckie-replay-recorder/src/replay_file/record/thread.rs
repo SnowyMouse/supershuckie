@@ -1,5 +1,5 @@
 use super::{ReplayFileWriteError, ReplayFileRecorder, ReplayFileSink, ReplayFileRecorderFns};
-use crate::{ByteVec, InputBuffer, Speed, TimestampMillis, UnsignedInteger};
+use crate::{ByteVec, InputBuffer, SignedInteger, Speed, TimestampMillis, UnsignedInteger};
 use alloc::borrow::ToOwned;
 use alloc::string::String;
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -139,17 +139,18 @@ impl<Final: ReplayFileSink + Send + 'static, Temp: ReplayFileSink + Send + 'stat
     }
 
     /// Mark the start of the replay.
-    ///
-    /// This function is blocking.
     pub fn mark_start(&mut self) {
         let _ = self.sender.send(ThreadedReplayFileRecorderCommand::MarkStart);
     }
 
     /// Mark the end of the replay.
-    ///
-    /// This function is blocking.
     pub fn mark_end(&mut self) {
         let _ = self.sender.send(ThreadedReplayFileRecorderCommand::MarkEnd);
+    }
+
+    /// Change the counter.
+    pub fn change_counter(&mut self, name: String, delta: SignedInteger) {
+        let _ = self.sender.send(ThreadedReplayFileRecorderCommand::IncrementCounter { name, delta });
     }
 }
 
@@ -222,6 +223,9 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ThreadedReplayFileRecorderThre
             ThreadedReplayFileRecorderCommand::MarkEnd => {
                 recorder.mark_end()
             }
+            ThreadedReplayFileRecorderCommand::IncrementCounter { name, delta } => {
+                recorder.change_counter(name, delta)
+            }
         }
     }
 }
@@ -234,6 +238,7 @@ enum ThreadedReplayFileRecorderCommand {
     SetSpeed { speed: Speed },
     WriteMemory { address: UnsignedInteger, data: ByteVec },
     LoadSaveState { state: ByteVec },
+    IncrementCounter { name: String, delta: SignedInteger },
     MarkStart,
     MarkEnd,
     ResetConsole,
@@ -314,6 +319,12 @@ impl<Final: ReplayFileSink + Sync + Send + 'static, Temp: ReplayFileSink + Sync 
     #[inline]
     fn mark_end(&mut self) -> Result<(), ReplayFileWriteError> {
         self.mark_end();
+        Ok(())
+    }
+
+    #[inline]
+    fn change_counter(&mut self, counter: String, delta: SignedInteger) -> Result<(), ReplayFileWriteError> {
+        self.change_counter(counter, delta);
         Ok(())
     }
 }

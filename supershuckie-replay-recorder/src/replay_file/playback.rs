@@ -37,6 +37,7 @@ type BookmarkMap<'a> = BTreeMap<String, Vec<&'a BookmarkMetadata>>;
 /// Object that iterates through packets in a replay file.
 pub struct ReplayFilePlayer {
     replay_file_metadata: ReplayFileMetadata,
+    header_raw: ReplayHeaderRaw,
     patch_data: Option<Vec<u8>>,
     all_uncompressed_packets: Arc<Vec<Packet>>,
     keyframes: KeyframeMap<'static>,
@@ -99,7 +100,7 @@ impl ReplayFilePlayer {
         let mut all_packets = Vec::new();
 
         while !replay_data.is_empty() {
-            match Packet::read_all(&mut replay_data) {
+            match Packet::read_all(&mut replay_data, header_raw.replay_version) {
                 Ok(n) => all_packets.push(n),
                 Err(_) if allow_some_corruption => break,
                 Err(PacketReadError::NotEnoughData) => return Err(ReplayFileReadError::BrokenPacket { explanation: Cow::Borrowed("not enough data for a packet") }),
@@ -250,6 +251,7 @@ impl ReplayFilePlayer {
             total_frame_count,
             total_millis: TimestampMillis(total_millis),
             cleanup_enabled: true,
+            header_raw: *header_raw,
 
             #[cfg(feature = "std")]
             threading: false
@@ -386,6 +388,7 @@ impl ReplayFilePlayer {
             let Some(working_blob_ref) = working_blob.as_ref() else {
                 // we have to decompress on the main thread. sad.
                 let packets = decompress_compressed_blob(
+                    &self.header_raw,
                     compressed_data.as_slice(),
                     usize::try_from(*uncompressed_size).expect("we checked uncompressed size converting earlier")
                 )?;
@@ -537,6 +540,8 @@ impl ReplayFilePlayer {
             *q = Some(status.clone());
             let status_ref = Arc::downgrade(&status);
             let packets = self.all_uncompressed_packets.clone();
+            let header = self.header_raw;
+
             match std::thread::Builder::new()
                 .name("ReplayFilePlayer-decompression-thread".to_owned())
                 .spawn(move || {
@@ -545,7 +550,7 @@ impl ReplayFilePlayer {
                         .expect("failed to get packet") else {
                         panic!("compressed blob wasn't a compressed blob NOOOOO")
                     };
-                    let decompressed = decompress_compressed_blob(compressed_data.as_slice(), usize::try_from(*uncompressed_size).expect("we checked this could be a usize!"));
+                    let decompressed = decompress_compressed_blob(&header, compressed_data.as_slice(), usize::try_from(*uncompressed_size).expect("we checked this could be a usize!"));
                     let Some(r) = status_ref.upgrade() else {
                         return
                     };
@@ -627,7 +632,7 @@ pub enum ReplayFileReadError {
     Other { explanation: Cow<'static, str> }
 }
 
-fn decompress_compressed_blob(blob_data: &[u8], uncompressed_size: usize) -> Result<Arc<Vec<Packet>>, ReplayFileReadError> {
+fn decompress_compressed_blob(header: &ReplayHeaderRaw, blob_data: &[u8], uncompressed_size: usize) -> Result<Arc<Vec<Packet>>, ReplayFileReadError> {
     let decompressed_data = decompress_data(blob_data, uncompressed_size)
         .map_err(|e| ReplayFileReadError::Other { explanation: Cow::Owned(format!("Decompression error: {e}")) })?;
 
@@ -636,7 +641,7 @@ fn decompress_compressed_blob(blob_data: &[u8], uncompressed_size: usize) -> Res
 
     while !b.is_empty() {
         packets.push(
-            Packet::read_all(&mut b).map_err(|i| ReplayFileReadError::BrokenPacket { explanation: Cow::Owned(format!("Failed to read packet - {i:?}")) })?
+            Packet::read_all(&mut b, header.replay_version).map_err(|i| ReplayFileReadError::BrokenPacket { explanation: Cow::Owned(format!("Failed to read packet - {i:?}")) })?
         )
     }
 

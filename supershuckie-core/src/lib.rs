@@ -14,10 +14,11 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::{Display, Formatter};
 use core::num::NonZeroU64;
+use std::collections::BTreeMap;
 use supershuckie_replay_recorder::replay_file::playback::{ReplayFilePlayer, ReplaySeekError};
 use supershuckie_replay_recorder::replay_file::record::{NonBlockingReplayFileRecorder, ReplayFileRecorder, ReplayFileRecorderFns, ReplayFileSink, ReplayFileWriteError};
 use supershuckie_replay_recorder::replay_file::{blake3_hash_to_ascii, ReplayFileMetadata, ReplayHeaderBlake3Hash, ReplayPatchFormat};
-use supershuckie_replay_recorder::{ByteVec, Packet, TimestampMillis, UnsignedInteger};
+use supershuckie_replay_recorder::{ByteVec, Packet, SignedInteger, TimestampMillis, UnsignedInteger};
 
 pub mod emulator;
 
@@ -33,6 +34,7 @@ pub use thread::*;
 pub struct SuperShuckieCore {
     core: Box<dyn EmulatorCore>,
     replay_file_recorder: Option<Box<dyn ReplayFileRecorderFns>>,
+    replay_counters: Option<BTreeMap<String, SignedInteger>>,
 
     timestamp_provider: Box<dyn MonotonicTimestampProvider>,
 
@@ -136,6 +138,7 @@ impl SuperShuckieCore {
             replay_player: None,
             replay_stalled: false,
             paused_timer_at: None,
+            replay_counters: None,
             core: emulator_core,
             timestamp_provider
         }
@@ -149,6 +152,11 @@ impl SuperShuckieCore {
     /// Run the emulator core for the shortest amount of time without any timekeeping.
     pub fn run_unlocked(&mut self) {
         self.do_run_fn(EmulatorCore::run_unlocked);
+    }
+
+    /// Get the current replay counters.
+    pub fn get_replay_counters(&self) -> Option<&BTreeMap<String, SignedInteger>> {
+        self.replay_counters.as_ref()
     }
 
     fn do_run_fn(&mut self, run_fn: fn(&mut dyn EmulatorCore) -> RunTime) {
@@ -273,7 +281,10 @@ impl SuperShuckieCore {
                         Packet::Bookmark { .. } => {}
                         Packet::Keyframe { .. } => {}
                         Packet::DeltaKeyframe { .. } => {},
-                        Packet::CompressedBlob { .. } => unreachable!("compressed blob")
+                        Packet::CompressedBlob { .. } => unreachable!("compressed blob"),
+                        Packet::IncrementCounter { name, delta } => {
+                            self.change_replay_counter_map(&name, *delta);
+                        }
                     }
                 }
                 Err(_) => {
@@ -394,6 +405,27 @@ impl SuperShuckieCore {
         self.toggled_input = input;
     }
 
+    /// Modify a counter, adding `delta`.
+    pub fn change_replay_counter(&mut self, name: String, delta: SignedInteger) {
+        if self.replay_file_recorder.is_none() {
+            return
+        }
+        self.change_replay_counter_map(&name, delta);
+        self.with_recorder(|r| r.change_counter(name, delta))
+    }
+
+    fn change_replay_counter_map(&mut self, name: &String, delta: SignedInteger) {
+        let counters = self.replay_counters
+            .as_mut()
+            .expect("replay_counters is None even though we're recording a replay");
+        if let Some(v) = counters.get_mut(name) {
+            *v = v.wrapping_add(delta)
+        }
+        else {
+            counters.insert(name.to_owned(), delta);
+        }
+    }
+
     /// Start recording a replay.
     pub fn start_recording_replay<
         FS: ReplayFileSink + Send + Sync + 'static,
@@ -444,6 +476,7 @@ impl SuperShuckieCore {
 
         self.frames_per_keyframe = partial_replay_record_metadata.frames_per_keyframe.get();
         self.replay_file_recorder = Some(Box::new(recorder));
+        self.replay_counters = Some(BTreeMap::new());
 
         Ok(())
     }
@@ -460,6 +493,7 @@ impl SuperShuckieCore {
     /// Returns None if no replay was being recorded. Otherwise, returns Some(true) if successfully closed, or Some(false) if not.
     pub fn stop_recording_replay(&mut self) -> Option<bool> {
         if let Some(mut old_recorder) = self.replay_file_recorder.take() {
+            self.replay_counters = None;
             return if !old_recorder.is_closed() {
                 Some(old_recorder.close().is_ok())
             }
@@ -548,6 +582,9 @@ impl SuperShuckieCore {
 
     /// Attach a replay file player to the core.
     pub fn attach_replay_player(&mut self, mut player: ReplayFilePlayer, allow_mismatched: bool) -> Result<(), ReplayPlayerAttachError> {
+        self.stop_recording_replay();
+        self.detach_replay_player();
+
         let metadata = player.get_replay_metadata();
         let core_console_type = self.core.replay_console_type();
 
@@ -588,6 +625,7 @@ impl SuperShuckieCore {
         self.current_input = Input::new();
         self.next_input = None;
         self.replay_player = Some(player);
+        self.replay_counters = Some(BTreeMap::new());
         self.replay_stalled = false;
         self.restart_timer();
 
@@ -598,8 +636,13 @@ impl SuperShuckieCore {
 
     /// Detach the current replay player.
     pub fn detach_replay_player(&mut self) {
+        if self.replay_player.is_none() {
+            return;
+        }
+
         self.replay_stalled = false;
         self.replay_player = None;
+        self.replay_counters = None;
         self.reset_input();
     }
 
@@ -647,6 +690,7 @@ impl SuperShuckieCore {
         self.total_milliseconds = metadata.elapsed_millis;
         self.replay_stalled = false;
         self.frames_since_last_keyframe = 0;
+        self.replay_counters = Some(metadata.counters.iter().map(|c| (c.name.clone(), c.value)).collect());
 
         self.set_speed(speed);
 
