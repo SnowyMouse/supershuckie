@@ -18,7 +18,7 @@ use supershuckie_core::emulator::{EmulatorCore, GameBoyColor, Input, Model, Part
 use supershuckie_core::{std_timestamp_provider, ElapsedTimeStats, ReplayPlayerAttachError, Speed, SuperShuckieRapidFire, ThreadedSuperShuckieCore};
 use supershuckie_frontend_webserver::{Stats, SuperShuckieServerCommand, SuperShuckieWebserver};
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash, ReplayPatchFormat};
-use supershuckie_replay_recorder::{ByteVec, SignedInteger, TimestampMillis, UnsignedInteger};
+use supershuckie_replay_recorder::{blake3_hash, ByteVec, SignedInteger, TimestampMillis, UnsignedInteger};
 use supershuckie_replay_recorder::replay_file::playback::ReplayFilePlayer;
 use supershuckie_replay_recorder::replay_file::record::ReplayFileRecorderSettings;
 
@@ -116,6 +116,8 @@ pub struct SuperShuckieFrontend {
     save_file: Option<Arc<UTF8CString>>,
     recording_replay_file: Option<ReplayFileInfo>,
 
+    bios_override: Option<Vec<u8>>,
+
     last_read_elapsed_time_stats: ElapsedTimeStats,
     last_read_replay_start: Option<(UnsignedInteger, TimestampMillis)>,
     last_read_replay_end: Option<(UnsignedInteger, TimestampMillis)>,
@@ -158,6 +160,7 @@ impl SuperShuckieFrontend {
             external_commands_error: None,
             connected_controllers: BTreeMap::new(),
             last_read_replay_start: Default::default(),
+            bios_override: None,
             last_read_replay_end: Default::default(),
         };
 
@@ -354,7 +357,10 @@ impl SuperShuckieFrontend {
         self.last_read_replay_start = metadata.crop_start;
         self.last_read_replay_end = metadata.crop_end;
 
-        if current_emulator_type != expected_type {
+        // TODO: let the user supply their own bios override instead
+        self.load_builtin_bios_override(metadata.bios_checksum);
+
+        if current_emulator_type != expected_type || self.bios_override.is_some() {
             self.instantiate_and_load_core(expected_type);
         }
 
@@ -402,6 +408,14 @@ impl SuperShuckieFrontend {
         let frames = self.core.get_playback_total_frames();
         let ms = self.core.get_playback_total_milliseconds();
         Some(SuperShuckieReplayTimes { total_milliseconds: ms, total_frames: frames })
+    }
+
+    fn load_builtin_bios_override(&mut self, hash: ReplayHeaderBlake3Hash) {
+        self.bios_override = None;
+        let gba_bios = include_bytes!("../../bootrom/agb/gba_bios.bin");
+        if hash == blake3_hash(gba_bios) {
+            self.bios_override = Some(gba_bios.to_vec());
+        }
     }
 
     fn push_save_state_history(&mut self) {
@@ -694,6 +708,7 @@ impl SuperShuckieFrontend {
     #[inline]
     pub fn reload_core(&mut self) {
         let emulator_type = self.emulator_type.expect("reload_rom_in_place with no emulator type");
+        self.bios_override = None;
         self.instantiate_and_load_core(emulator_type);
     }
 
@@ -771,11 +786,15 @@ impl SuperShuckieFrontend {
     }
 
     fn get_bios_for_core(&self, emulator_kind: SuperShuckieEmulatorType) -> Vec<u8> {
-        // TODO: Let this be configurable.
+        if let Some(s) = self.bios_override.clone() {
+            return s;
+        }
+
+        // Defaults
         match emulator_kind {
             SuperShuckieEmulatorType::GameBoy | SuperShuckieEmulatorType::GameBoySGB2 => include_bytes!("../../bootrom/dmg/dmg.bin").to_vec(),
             SuperShuckieEmulatorType::GameBoyColor => include_bytes!("../../bootrom/cgb/cgb_boot/cgb_boot_fast.bin").to_vec(),
-            SuperShuckieEmulatorType::GameBoyAdvance => include_bytes!("../../bootrom/agb/gba_bios.bin").to_vec(),
+            SuperShuckieEmulatorType::GameBoyAdvance => Vec::new(),
             SuperShuckieEmulatorType::NintendoDS => Vec::new()
         }
     }

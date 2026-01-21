@@ -100,11 +100,13 @@ extern "C" MGBACoreRaw *mgba_rs_core_new(
     core->pixels.resize(240 * 160);
     core->core->setVideoBuffer(core->core, core->pixels.data(), 240);
 
-    core->bios = std::vector(bios, bios + bios_size);
-    core->bios_vf = VFileFromMemory(core->bios.data(), core->bios.size());
-    if(!core->core->loadBIOS(core->core, core->bios_vf, 0)) {
-        std::printf("Bad BIOS\n");
-        std::terminate();
+    if(bios_size > 0) {
+        core->bios = std::vector(bios, bios + bios_size);
+        core->bios_vf = VFileFromMemory(core->bios.data(), core->bios.size());
+        if(!core->core->loadBIOS(core->core, core->bios_vf, 0)) {
+            std::printf("Bad BIOS\n");
+            std::terminate();
+        }
     }
 
     core->core->reset(core->core);
