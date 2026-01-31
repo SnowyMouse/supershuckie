@@ -9,7 +9,6 @@ The server is `127.0.0.1:30158`
 
 - [JS API](#js-api)
   - [Usage](#usage)
-    - [HTML](#html)
     - [JavaScript](#javascript)
     - [TypeScript](#typescript)
   - [Example code](#example-code)
