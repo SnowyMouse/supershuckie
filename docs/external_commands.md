@@ -5,28 +5,47 @@ will need the feature enabled inside the application itself.
 
 The server is `127.0.0.1:30158`
 
+## Table of contents
+
+- [JS API](#js-api)
+  - [Usage](#usage)
+    - [HTML](#html)
+    - [JavaScript](#javascript)
+    - [TypeScript](#typescript)
+  - [Example code](#example-code)
+- [Rest command reference](#rest-command-reference)
+  - [increment-counter](#increment-counter)
+  - [mark-start](#mark-start)
+  - [mark-end](#mark-end)
+  - [stats](#stats)
+
 ## JS API
 
-To make things simple, you can use the JavaScript API. Here is some example
-usage.
+To make things simple, you can use the JavaScript API. You can use it from
+Super Shuckie's source code (`/supershuckie-frontend-webserver/js/client.js`) or
+load it from a Super Shuckie instance at `http://127.0.0.1:30158/client.js`
 
 ### Usage
 
-First, you will want to import it. There are a few ways you can do this.
+First, you will need to somehow import it. There are a few ways you can do this.
 
-#### HTML (loaded from the emulator)
+#### JavaScript
 
-```html
-<script type="module" src="http://127.0.0.1:30158/client.js"></script>
-```
-
-#### JavaScript (loaded from the emulator)
+You can import it in a JavaScript module by putting this at the top of your
+module:
 
 ```javascript
 import { SuperShuckieClient } from "http://127.0.0.1:30158/client.js"
 ```
 
-#### TypeScript (using source code directly)
+You can alternatively import it dynamically from within an async function with
+this:
+
+```javascript
+const { SuperShuckieClient } = await import("http://127.0.0.1:30158/client.js")
+```
+
+#### TypeScript
 
 If you are using TypeScript, you can directly use the definitions and code from
 Super Shuckie's source tree at `/supershuckie-frontend-webserver/js`
@@ -41,36 +60,38 @@ import { SuperShuckieClient } from "./somepath/client"
 ### Example code
 
 ```html
-<script type="module" src="http://127.0.0.1:30158/client.js"></script>
 <script type="module">
-    const shuckie = new SuperShuckieClient();
+    // Import the client...
+    import { SuperShuckieClient } from "http://127.0.0.1:30158/client.js"
     
+    // Next, create the client.
+    const shuckie = new SuperShuckieClient();
+
+    // Here's a function updating your overlay
     async function update() {
         const stats = await shuckie.stats()
-        
-        // start the timer (at a 1 second offset) if it has not already been set
+
+        // Start the timer (at a 1 second offset) if it has not already been set
         if (stats.is_recording && stats.time_current == null) {
             await shuckie.mark_start(1000)
         }
-        
-        console.log(`Current timer: ${stats.time_current} milliseconds`)
-    }
-    
-    // update at 60 Hz
-    let busy = false
-    setInterval(async function() {
-        if(busy) {
-            return
-        }
-        busy = true
-        try {
-            await update()
-        } finally {
-            busy = false
-        }
-    }, 16.67)
-</script>
 
+        console.log(`Current timer: ${stats.time_current}`)
+    }
+
+    // We want to run that function 60 times a second. Since it's async, we want
+    // to wrap it in something that prevents it from being called multiple times
+    // at once (race conditions).
+    let busy = false
+    setInterval(
+        () => {
+            if (busy) { return; }
+            busy = true
+            update().finally(() => { busy = false })
+        },
+        1000 / 60 // update at 60 Hz
+    )
+</script>
 ```
 
 Refer to [`client.d.ts`] for documentation on this API.
@@ -81,13 +102,6 @@ Refer to [`client.d.ts`] for documentation on this API.
 
 If you are not using JS or you do not wish to use the above API, you can also
 directly interact with Super Shuckie with these requests.
-
-### Table of contents
-
-- [increment-counter](#increment-counter)
-- [mark-start](#mark-start)
-- [mark-end](#mark-end)
-- [stats](#stats)
 
 ### increment-counter
 

@@ -1,4 +1,5 @@
 // client.js - see client.d.ts for documentation
+//
 
 "use strict";
 
@@ -61,6 +62,3 @@ export class SuperShuckieClientRestError extends Error {
         super(`Super Shuckie error: ${message}`);
     }
 }
-
-globalThis.SuperShuckieClient = SuperShuckieClient
-globalThis.SuperShuckieClientRestError = SuperShuckieClientRestError
