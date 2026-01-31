@@ -19,7 +19,7 @@ struct Error {
 impl SuperShuckieWebserver {
     /// Instantiate the server.
     pub fn new<S: ToSocketAddrs>(addr: S) -> Result<Self, String> {
-        let (backlog_sender, backlog_receiver) = sync_channel(2048);
+        let (backlog_sender, backlog_receiver) = sync_channel(1024);
         let should_continue = Arc::new(AtomicBool::new(true));
         let emulator_not_available_error = || {
             fixup_response(Response::json(&Error {
@@ -32,7 +32,10 @@ impl SuperShuckieWebserver {
             fixup_response(match url.as_str() {
                 "/stats" => {
                     let (responder, response) = channel();
-                    let _ = backlog_sender.send(SuperShuckieServerCommand::Stats(responder));
+
+                    if backlog_sender.try_send(SuperShuckieServerCommand::Stats(responder)).is_err() {
+                        return emulator_not_available_error();
+                    }
 
                     match response.recv() {
                         Ok(n) => Response::json(Arc::as_ref(&n)),
@@ -54,7 +57,9 @@ impl SuperShuckieWebserver {
                         }
                     };
 
-                    let _ = backlog_sender.send(SuperShuckieServerCommand::MarkStart(responder, offset));
+                    if backlog_sender.try_send(SuperShuckieServerCommand::MarkStart(responder, offset)).is_err() {
+                        return emulator_not_available_error();
+                    }
 
                     match response.recv() {
                         Ok(true) => Response::empty_204(),
@@ -66,7 +71,9 @@ impl SuperShuckieWebserver {
                 },
                 "/mark-end" => {
                     let (responder, response) = channel();
-                    let _ = backlog_sender.send(SuperShuckieServerCommand::MarkEnd(responder));
+                    if backlog_sender.try_send(SuperShuckieServerCommand::MarkEnd(responder)).is_err() {
+                        return emulator_not_available_error()
+                    }
 
                     match response.recv() {
                         Ok(true) => Response::empty_204(),
@@ -97,7 +104,10 @@ impl SuperShuckieWebserver {
                         }
                     };
 
-                    let _ = backlog_sender.send(SuperShuckieServerCommand::IncrementCounter(name, by));
+                    if backlog_sender.try_send(SuperShuckieServerCommand::IncrementCounter(name, by)).is_err() {
+                        return emulator_not_available_error();
+                    }
+
                     Response::empty_204()
                 }
                 _ => Response::empty_400()
