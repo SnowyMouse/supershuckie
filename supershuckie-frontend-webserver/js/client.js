@@ -1,5 +1,15 @@
-// client.js - see client.d.ts for documentation
-//
+/*!
+ * client.js (see client.d.ts for documentation)
+ *
+ * Copyright 2026 SnowyMouse
+ *
+ * The Super Shuckie JavaScript API (client.js and client.d.ts) are licensed
+ * under version 3 of the GNU GPL, just like the rest of Super Shuckie.
+ *
+ * HOWEVER, you may alternatively use, copy, link with, and/or distribute
+ * the Super Shuckie JavaScript API under the terms of Version 2.0 of the
+ * Apache License, obtainable at http://www.apache.org/licenses/LICENSE-2.0
+ */
 
 "use strict";
 

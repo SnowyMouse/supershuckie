@@ -1,6 +1,11 @@
 # Super Shuckie
 
-TODO
+This is an emulation frontend for GBC, GBA, and NDS, optimized for content
+creation.
+
+It is licensed under version 3 of the GNU General Public License as published by
+the Free Software Foundation in 2007. Unless otherwise specified, it is not
+available under any other license.
 
 ## How to obtain
 
