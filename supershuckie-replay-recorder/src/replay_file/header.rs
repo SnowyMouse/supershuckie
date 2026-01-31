@@ -63,7 +63,7 @@ pub struct ReplayHeaderRaw {
     /// 0x008 - type of the console
     pub console_type: MaybeEnum<ReplayConsoleType>,
 
-    /// 0x00C - crop_start_* are valid
+    /// 0x00C - crop_start_* and crop_timer_offset are valid
     pub crop_start: bool,
 
     /// 0x00D - crop_end_* are valid
@@ -111,8 +111,11 @@ pub struct ReplayHeaderRaw {
     /// 0x398 - crop range end (milliseconds)
     pub crop_end_millis: TimestampMillis,
 
-    /// 0x390 - padding
-    pub _padding_2: [u8; 0x460 - 4],
+    /// 0x390 - crop timer offset
+    pub crop_timer_offset: TimestampMillis,
+
+    /// 0x398 - padding
+    pub _padding_2: [u8; 0x458 - 4],
 
     /// 0x7FC - signature (must equal [`SIGNATURE_END`])
     pub signature_end: [u8; 4],
@@ -157,7 +160,10 @@ pub struct ReplayFileMetadata {
     pub crop_start: Option<(UnsignedInteger, TimestampMillis)>,
 
     /// crop end
-    pub crop_end: Option<(UnsignedInteger, TimestampMillis)>
+    pub crop_end: Option<(UnsignedInteger, TimestampMillis)>,
+
+    /// timer offset
+    pub timer_offset: Option<TimestampMillis>
 }
 
 impl ReplayHeaderRaw {
@@ -214,6 +220,7 @@ impl ReplayHeaderRaw {
 
             crop_start: self.crop_start.then_some((self.crop_start_frame, self.crop_start_millis)),
             crop_end: self.crop_end.then_some((self.crop_end_frame, self.crop_end_millis)),
+            timer_offset: self.crop_start.then_some(self.crop_timer_offset)
         })
     }
 }
@@ -252,6 +259,7 @@ impl ReplayFileMetadata {
             crop_end_frame: self.crop_end.map(|i| i.0).unwrap_or(0),
             crop_start_millis: self.crop_start.map(|i| i.1).unwrap_or(0.into()),
             crop_end_millis: self.crop_end.map(|i| i.1).unwrap_or(0.into()),
+            crop_timer_offset: self.timer_offset.unwrap_or(0.into()),
 
             crop_start: self.crop_start.is_some(),
             crop_end: self.crop_end.is_some(),

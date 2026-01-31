@@ -139,8 +139,8 @@ impl<Final: ReplayFileSink + Send + 'static, Temp: ReplayFileSink + Send + 'stat
     }
 
     /// Mark the start of the replay.
-    pub fn mark_start(&mut self) {
-        let _ = self.sender.send(ThreadedReplayFileRecorderCommand::MarkStart);
+    pub fn mark_start(&mut self, timer_offset: TimestampMillis) {
+        let _ = self.sender.send(ThreadedReplayFileRecorderCommand::MarkStart { timer_offset });
     }
 
     /// Mark the end of the replay.
@@ -217,8 +217,8 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ThreadedReplayFileRecorderThre
             ThreadedReplayFileRecorderCommand::LoadSaveState { state } => {
                 recorder.load_save_state(state)
             }
-            ThreadedReplayFileRecorderCommand::MarkStart => {
-                recorder.mark_start()
+            ThreadedReplayFileRecorderCommand::MarkStart { timer_offset } => {
+                recorder.mark_start(timer_offset)
             }
             ThreadedReplayFileRecorderCommand::MarkEnd => {
                 recorder.mark_end()
@@ -239,7 +239,7 @@ enum ThreadedReplayFileRecorderCommand {
     WriteMemory { address: UnsignedInteger, data: ByteVec },
     LoadSaveState { state: ByteVec },
     IncrementCounter { name: String, delta: SignedInteger },
-    MarkStart,
+    MarkStart { timer_offset: TimestampMillis },
     MarkEnd,
     ResetConsole,
     Close
@@ -311,8 +311,8 @@ impl<Final: ReplayFileSink + Sync + Send + 'static, Temp: ReplayFileSink + Sync 
     }
 
     #[inline]
-    fn mark_start(&mut self) -> Result<(), ReplayFileWriteError> {
-        self.mark_start();
+    fn mark_start(&mut self, timer_offset: TimestampMillis) -> Result<(), ReplayFileWriteError> {
+        self.mark_start(timer_offset);
         Ok(())
     }
 

@@ -1,6 +1,7 @@
 pub mod util;
 pub mod settings;
 
+use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use crate::settings::*;
 use crate::util::UTF8CString;
@@ -119,8 +120,7 @@ pub struct SuperShuckieFrontend {
     bios_override: Option<Vec<u8>>,
 
     last_read_elapsed_time_stats: ElapsedTimeStats,
-    last_read_replay_start: Option<(UnsignedInteger, TimestampMillis)>,
-    last_read_replay_end: Option<(UnsignedInteger, TimestampMillis)>,
+    last_read_replay_stats: Option<LastReadReplayCropData>,
 
     paused: bool,
 
@@ -159,9 +159,8 @@ impl SuperShuckieFrontend {
             web_server: None,
             external_commands_error: None,
             connected_controllers: BTreeMap::new(),
-            last_read_replay_start: Default::default(),
+            last_read_replay_stats: None,
             bios_override: None,
-            last_read_replay_end: Default::default(),
         };
 
         // This is not tied to the core, so we want to immediately enable this.
@@ -228,9 +227,11 @@ impl SuperShuckieFrontend {
     }
 
     /// Mark the start of a replay.
-    pub fn mark_replay_start(&mut self) -> Result<(), ()> {
-        if let Ok(n) = self.core.mark_start() {
-            self.last_read_replay_start = Some(n);
+    pub fn mark_replay_start(&mut self, timer_offset: TimestampMillis) -> Result<(), ()> {
+        if let Ok(n) = self.core.mark_start(timer_offset) {
+            let stats = self.get_or_create_last_read_replay_stats();
+            stats.timer_offset = Some(timer_offset);
+            stats.start = Some(n);
             Ok(())
         }
         else {
@@ -241,12 +242,19 @@ impl SuperShuckieFrontend {
     /// Mark the end of a replay.
     pub fn mark_replay_end(&mut self) -> Result<(), ()> {
         if let Ok(n) = self.core.mark_end() {
-            self.last_read_replay_end = Some(n);
+            self.get_or_create_last_read_replay_stats().end = Some(n);
             Ok(())
         }
         else {
             Err(())
         }
+    }
+
+    fn get_or_create_last_read_replay_stats(&mut self) -> &mut LastReadReplayCropData {
+        if self.last_read_replay_stats.is_none() {
+            self.last_read_replay_stats = Some(LastReadReplayCropData::default());
+        }
+        self.last_read_replay_stats.as_mut().expect("should be created")
     }
 
     /// Change the given replay counter, adding delta.
@@ -354,8 +362,11 @@ impl SuperShuckieFrontend {
             _ => current_emulator_type
         };
 
-        self.last_read_replay_start = metadata.crop_start;
-        self.last_read_replay_end = metadata.crop_end;
+        self.last_read_replay_stats = Some(LastReadReplayCropData {
+            start: metadata.crop_start,
+            end: metadata.crop_end,
+            timer_offset: metadata.timer_offset
+        });
 
         // TODO: let the user supply their own bios override instead
         self.load_builtin_bios_override(metadata.bios_checksum);
@@ -392,8 +403,7 @@ impl SuperShuckieFrontend {
     /// Stop playing back any currently playing replay.
     #[inline]
     pub fn stop_replay_playback(&mut self) {
-        self.last_read_replay_start = None;
-        self.last_read_replay_end = None;
+        self.last_read_replay_stats = None;
         self.core.detach_replay_player();
         self.reset_speed();
         self.current_input = Input::default();
@@ -1022,51 +1032,63 @@ impl SuperShuckieFrontend {
         }
 
         if let Some(mut s) = self.web_server.take() {
-            fn make_stats(what: &SuperShuckieFrontend) -> Stats {
-                let replay_state = what.get_replay_state();
-                let counters = what.get_replay_counters();
+            let stats: OnceCell<Arc<Stats>> = OnceCell::new();
 
-                // use cached to avoid DoSing the emulator lol
-                let stats = what.last_read_elapsed_time_stats;
+            fn make_stats(what: &SuperShuckieFrontend, stats: &OnceCell<Arc<Stats>>) -> Arc<Stats> {
+                stats.get_or_init(|| {
+                    let replay_state = what.get_replay_state();
+                    let counters = what.get_replay_counters();
 
-                let timer_start = what.last_read_replay_start.map(|n| n.1.0 as u32);
-                let timer_end = what.last_read_replay_end.map(|n| n.1.0 as u32);
+                    // use cached to avoid DoSing the emulator lol
+                    let stats = what.last_read_elapsed_time_stats;
 
-                let timer_current = if let Some(start) = timer_start {
-                    let value = stats.milliseconds.saturating_sub(start);
+                    let replay_stats = what.last_read_replay_stats.as_ref();
 
-                    if let Some(end) = timer_end {
-                        Some(value.min(end.saturating_sub(start)))
+                    let timer_start = replay_stats.and_then(|i| i.start).map(|n| n.1.0 as u32);
+                    let timer_end = replay_stats.and_then(|i| i.end).map(|n| n.1.0 as u32);
+                    let timer_offset = replay_stats.and_then(|i| i.timer_offset).map(|n| n.0 as u32);
+
+                    let mut timer_current = if let Some(start) = timer_start {
+                        let value = stats.milliseconds.saturating_sub(start);
+
+                        if let Some(end) = timer_end {
+                            Some(value.min(end.saturating_sub(start)))
+                        }
+                        else {
+                            Some(value)
+                        }
                     }
                     else {
-                        Some(value)
-                    }
-                }
-                else {
-                    None
-                };
+                        None
+                    };
 
-                Stats {
-                    time_start: timer_start,
-                    time_end: timer_end,
-                    time_current: timer_current,
-                    total_elapsed_time: stats.milliseconds,
-                    total_elapsed_frames: stats.frames,
-                    is_playing_back: replay_state == SuperShuckieReplayState::Playback,
-                    is_recording: replay_state == SuperShuckieReplayState::Recording,
-                    current_speed: stats.speed.into_multiplier_float(),
-                    counters,
-                    is_paused: what.is_paused(),
-                }
+                    if let Some(c) = timer_current.as_mut() && let Some(offset) = timer_offset {
+                        *c = c.wrapping_add(offset)
+                    };
+
+                    Arc::new(Stats {
+                        time_start: timer_start,
+                        time_end: timer_end,
+                        time_current: timer_current,
+                        time_offset: timer_offset,
+                        total_elapsed_time: stats.milliseconds,
+                        total_elapsed_frames: stats.frames,
+                        is_playing_back: replay_state == SuperShuckieReplayState::Playback,
+                        is_recording: replay_state == SuperShuckieReplayState::Recording,
+                        current_speed: stats.speed.into_multiplier_float(),
+                        counters,
+                        is_paused: what.is_paused(),
+                    })
+                }).clone()
             }
 
             while let Some(s) = s.next_server_command() {
                 match s {
                     SuperShuckieServerCommand::Stats(t) => {
-                        let _ = t.send(make_stats(self));
+                        let _ = t.send(make_stats(self, &stats).clone());
                     }
-                    SuperShuckieServerCommand::MarkStart(t) => {
-                        let _ = t.send(self.mark_replay_start().is_ok());
+                    SuperShuckieServerCommand::MarkStart(t, timer_offset) => {
+                        let _ = t.send(self.mark_replay_start(TimestampMillis(timer_offset as UnsignedInteger)).is_ok());
                     }
                     SuperShuckieServerCommand::MarkEnd(t) => {
                         let _ = t.send(self.mark_replay_end().is_ok());
@@ -1217,8 +1239,7 @@ impl SuperShuckieFrontend {
             self.set_paused(true);
         }
 
-        self.last_read_replay_start = None;
-        self.last_read_replay_end = None;
+        self.last_read_replay_stats = None;
 
         self.core.start_recording_replay(PartialReplayRecordMetadata {
             rom_name: current_rom_name.to_string(),
@@ -1277,8 +1298,7 @@ impl SuperShuckieFrontend {
         // FIXME: We should make sure that it actually finalized here before deleting the temp file.
         let zero_frames = self.core.get_elapsed_time().frames == 0;
 
-        self.last_read_replay_start = None;
-        self.last_read_replay_end = None;
+        self.last_read_replay_stats = None;
 
         self.core.stop_recording_replay();
         let _ = std::fs::remove_file(&replay_file.temp_replay_path);
@@ -1561,6 +1581,13 @@ pub struct ReplayFileInfo {
 
     /// Path to the temp file being recorded
     pub temp_replay_path: PathBuf
+}
+
+#[derive(Clone, Debug, Default)]
+struct LastReadReplayCropData {
+    start: Option<(UnsignedInteger, TimestampMillis)>,
+    end: Option<(UnsignedInteger, TimestampMillis)>,
+    timer_offset: Option<TimestampMillis>,
 }
 
 pub trait SuperShuckieFrontendCallbacks {

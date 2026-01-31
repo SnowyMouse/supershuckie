@@ -298,9 +298,9 @@ impl ThreadedSuperShuckieCore {
     }
 
     /// Mark the start of the replay.
-    pub fn mark_start(&mut self) -> Result<(UnsignedInteger, TimestampMillis), ()> {
+    pub fn mark_start(&mut self, timer_offset: TimestampMillis) -> Result<(UnsignedInteger, TimestampMillis), ()> {
         let (sender, receiver) = channel();
-        let _ = self.sender.send(ThreadCommand::MarkReplayStart(sender));
+        let _ = self.sender.send(ThreadCommand::MarkReplayStart(sender, timer_offset));
         receiver.recv().map_err(|_| ())
     }
 
@@ -362,7 +362,7 @@ enum ThreadCommand {
     CreateSaveState(Sender<Vec<u8>>),
     LoadSaveState(Vec<u8>),
     SaveSRAM(Sender<Vec<u8>>),
-    MarkReplayStart(Sender<(UnsignedInteger, TimestampMillis)>),
+    MarkReplayStart(Sender<(UnsignedInteger, TimestampMillis)>, TimestampMillis),
     MarkReplayEnd(Sender<(UnsignedInteger, TimestampMillis)>),
     Close,
     ChangeReplayCounter { name: String, delta: SignedInteger },
@@ -703,8 +703,8 @@ impl ThreadedSuperShuckieCoreThread {
             ThreadCommand::DetachReplayPlayer => {
                 self.core.detach_replay_player();
             }
-            ThreadCommand::MarkReplayStart(timestamp) => {
-                if let Some(n) = self.core.mark_start() {
+            ThreadCommand::MarkReplayStart(timestamp, timer_offset) => {
+                if let Some(n) = self.core.mark_start(timer_offset) {
                     let _ = timestamp.send(n);
                 }
             }

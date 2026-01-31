@@ -222,12 +222,14 @@ impl SuperShuckieCore {
     }
 
     /// Mark the start of the replay, returning the timestamp.
-    pub fn mark_start(&mut self) -> Option<(UnsignedInteger, TimestampMillis)> {
+    /// 
+    /// Set the timer offset to the given offset.
+    pub fn mark_start(&mut self, timer_offset: TimestampMillis) -> Option<(UnsignedInteger, TimestampMillis)> {
         if self.replay_file_recorder.is_none() {
             return None
         }
 
-        self.with_recorder(|r| r.mark_start());
+        self.with_recorder(|r| r.mark_start(timer_offset));
         Some((self.total_frames, self.total_milliseconds))
     }
 
@@ -465,7 +467,8 @@ impl SuperShuckieCore {
                 patch_format: ReplayPatchFormat::Unpatched,
                 patch_target_checksum: ReplayHeaderBlake3Hash::default(),
                 crop_start: None,
-                crop_end: None
+                crop_end: None,
+                timer_offset: None
             },
 
             ByteVec::new(),

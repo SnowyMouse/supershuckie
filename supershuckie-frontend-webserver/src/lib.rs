@@ -19,19 +19,30 @@ impl SuperShuckieWebserver {
 
         let server = Server::new(addr, move |request| {
             let url = request.url();
-            match url.as_str() {
+            fixup_response(match url.as_str() {
                 "/stats" => {
                     let (responder, response) = channel();
                     let _ = backlog_sender.send(SuperShuckieServerCommand::Stats(responder));
 
                     match response.recv() {
-                        Ok(n) => Response::json(&n),
+                        Ok(n) => Response::json(Arc::as_ref(&n)),
                         _ => Response::empty_404()
                     }
                 },
                 "/mark-start" => {
                     let (responder, response) = channel();
-                    let _ = backlog_sender.send(SuperShuckieServerCommand::MarkStart(responder));
+
+                    let offset = match request.get_param("offset") {
+                        None => 0,
+                        Some(offset) => match offset.parse() {
+                            Ok(n) => n,
+                            Err(_) => {
+                                return fixup_response(Response::empty_400())
+                            }
+                        }
+                    };
+
+                    let _ = backlog_sender.send(SuperShuckieServerCommand::MarkStart(responder, offset));
 
                     match response.recv() {
                         Ok(true) => Response::empty_204(),
@@ -48,27 +59,23 @@ impl SuperShuckieWebserver {
                     }
                 },
                 "/increment-counter" => {
-                    if let Some(name) = request.get_param("name") {
-                        if let Some(by) = request.get_param("by") {
-                            if let Ok(by) = by.parse::<i64>() {
-                                let _ = backlog_sender.send(SuperShuckieServerCommand::IncrementCounter(name, by));
-                                Response::empty_204()
-                            }
-                            else {
-                                Response::empty_400()
-                            }
+                    let Some(name) = request.get_param("name") else {
+                        return fixup_response(Response::empty_400())
+                    };
+
+                    let by = match request.get_param("by") {
+                        None => 1,
+                        Some(n) => match n.parse() {
+                            Ok(n) => n,
+                            Err(_) => return fixup_response(Response::empty_204())
                         }
-                        else {
-                            let _ = backlog_sender.send(SuperShuckieServerCommand::IncrementCounter(name, 1));
-                            Response::empty_204()
-                        }
-                    }
-                    else {
-                        Response::empty_400()
-                    }
+                    };
+
+                    let _ = backlog_sender.send(SuperShuckieServerCommand::IncrementCounter(name, by));
+                    Response::empty_204()
                 }
                 _ => Response::empty_400()
-            }.with_unique_header("Access-Control-Allow-Origin", "*")
+            })
         }).map_err(|e| format!("Failed to make SuperShuckieServer:\n\n{e}"))?;
 
         let should_continue_inner = should_continue.clone();
@@ -92,6 +99,10 @@ impl SuperShuckieWebserver {
     }
 }
 
+fn fixup_response(response: Response) -> Response {
+    response.with_unique_header("Access-Control-Allow-Origin", "*")
+}
+
 impl Drop for SuperShuckieWebserver {
     fn drop(&mut self) {
         self.should_continue.store(false, Ordering::Relaxed);
@@ -102,8 +113,8 @@ impl Drop for SuperShuckieWebserver {
 }
 
 pub enum SuperShuckieServerCommand {
-    Stats(Sender<Stats>),
-    MarkStart(Sender<bool>),
+    Stats(Sender<Arc<Stats>>),
+    MarkStart(Sender<bool>, u32),
     MarkEnd(Sender<bool>),
     IncrementCounter(String, i64)
 }
@@ -112,6 +123,7 @@ pub enum SuperShuckieServerCommand {
 pub struct Stats {
     pub time_start: Option<u32>,
     pub time_end: Option<u32>,
+    pub time_offset: Option<u32>,
     pub time_current: Option<u32>,
 
     pub total_elapsed_time: u32,

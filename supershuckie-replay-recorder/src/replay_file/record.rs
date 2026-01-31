@@ -390,10 +390,11 @@ impl<Final: ReplayFileSink, Temp: ReplayFileSink> ReplayFileRecorder<Final, Temp
     }
 
     /// Mark the current position as the start.
-    pub fn mark_start(&mut self) -> Result<(), ReplayFileWriteError> {
+    pub fn mark_start(&mut self, timer_offset: TimestampMillis) -> Result<(), ReplayFileWriteError> {
         self.header.crop_start_frame = self.elapsed_frames;
         self.header.crop_start_millis = self.elapsed_millis;
         self.header.crop_start = true;
+        self.header.crop_timer_offset = timer_offset;
         self.sync_header()
     }
 
@@ -622,7 +623,7 @@ pub trait ReplayFileRecorderFns: core::any::Any + 'static + Send {
     fn set_speed(&mut self, speed: Speed) -> Result<(), ReplayFileWriteError>;
     fn load_save_state(&mut self, state: ByteVec) -> Result<(), ReplayFileWriteError>;
     fn get_errors(&mut self) -> Vec<ReplayFileWriteError>;
-    fn mark_start(&mut self) -> Result<(), ReplayFileWriteError>;
+    fn mark_start(&mut self, timer_offset: TimestampMillis) -> Result<(), ReplayFileWriteError>;
     fn mark_end(&mut self) -> Result<(), ReplayFileWriteError>;
     fn change_counter(&mut self, counter: String, delta: SignedInteger) -> Result<(), ReplayFileWriteError>;
 }
@@ -687,8 +688,8 @@ impl<Final: ReplayFileSink + 'static + Send, Temp: ReplayFileSink + 'static + Se
     }
 
     #[inline]
-    fn mark_start(&mut self) -> Result<(), ReplayFileWriteError> {
-        self.mark_start()
+    fn mark_start(&mut self, timer_offset: TimestampMillis) -> Result<(), ReplayFileWriteError> {
+        self.mark_start(timer_offset)
     }
 
     #[inline]
