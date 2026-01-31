@@ -73,7 +73,9 @@ import { SuperShuckieClient } from "./somepath/client"
 
 ```
 
-Refer to `client.d.ts` for documentation on this API.
+Refer to [`client.d.ts`] for documentation on this API.
+
+[`client.d.ts`]: ../supershuckie-frontend-webserver/js/client.d.ts
 
 ## REST command reference
 
