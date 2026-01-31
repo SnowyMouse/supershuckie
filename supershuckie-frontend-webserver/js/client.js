@@ -42,7 +42,7 @@ export class SuperShuckieClient {
     }
 
     async increment_counter(name, by = 1) {
-        if(name === "" || typeof name != "string") {
+        if(name === "" || typeof name !== "string") {
             throw new TypeError("increment_counter counter must be a non-empty string")
         }
         if(typeof by !== "number" || !Number.isInteger(by)) {
