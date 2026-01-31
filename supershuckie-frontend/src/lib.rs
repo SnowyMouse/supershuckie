@@ -1032,11 +1032,17 @@ impl SuperShuckieFrontend {
         }
 
         if let Some(mut s) = self.web_server.take() {
-            let stats: OnceCell<Arc<Stats>> = OnceCell::new();
+            let mut stats: OnceCell<Arc<Stats>> = OnceCell::new();
+            let replay_state = self.get_replay_state();
+            let is_playing_back = replay_state == SuperShuckieReplayState::Playback;
+            let is_recording = replay_state == SuperShuckieReplayState::Recording;
 
-            fn make_stats(what: &SuperShuckieFrontend, stats: &OnceCell<Arc<Stats>>) -> Arc<Stats> {
-                stats.get_or_init(|| {
-                    let replay_state = what.get_replay_state();
+            let reset_stats = |stats: &mut OnceCell<Arc<Stats>>| {
+                *stats = OnceCell::new();
+            };
+
+            let make_stats = |what: &SuperShuckieFrontend, stats: &OnceCell<Arc<Stats>>| -> Arc<Stats> {
+                stats.get_or_init(move || {
                     let counters = what.get_replay_counters();
 
                     // use cached to avoid DoSing the emulator lol
@@ -1073,14 +1079,14 @@ impl SuperShuckieFrontend {
                         time_offset: timer_offset,
                         total_elapsed_time: stats.milliseconds,
                         total_elapsed_frames: stats.frames,
-                        is_playing_back: replay_state == SuperShuckieReplayState::Playback,
-                        is_recording: replay_state == SuperShuckieReplayState::Recording,
+                        is_playing_back,
+                        is_recording,
                         current_speed: stats.speed.into_multiplier_float(),
                         counters,
                         is_paused: what.is_paused(),
                     })
                 }).clone()
-            }
+            };
 
             while let Some(s) = s.next_server_command() {
                 match s {
@@ -1088,12 +1094,16 @@ impl SuperShuckieFrontend {
                         let _ = t.send(make_stats(self, &stats).clone());
                     }
                     SuperShuckieServerCommand::MarkStart(t, timer_offset) => {
+                        reset_stats(&mut stats);
                         let _ = t.send(self.mark_replay_start(TimestampMillis(timer_offset as UnsignedInteger)).is_ok());
                     }
                     SuperShuckieServerCommand::MarkEnd(t) => {
+                        reset_stats(&mut stats);
                         let _ = t.send(self.mark_replay_end().is_ok());
                     }
-                    SuperShuckieServerCommand::IncrementCounter(name, counter) => {
+                    SuperShuckieServerCommand::IncrementCounter(t, name, counter) => {
+                        reset_stats(&mut stats);
+                        let _ = t.send(is_recording);
                         self.change_replay_counter(name, counter);
                     }
                 }

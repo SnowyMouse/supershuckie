@@ -3,16 +3,91 @@
 You can control Super Shuckie using REST requests. To enable this feature, you
 will need the feature enabled inside the application itself.
 
-You can then make the following GET requests to `127.0.0.1:30158`.
+The server is `127.0.0.1:30158`
 
-## Table of contents
+## JS API
+
+To make things simple, you can use the JavaScript API. Here is some example
+usage.
+
+### Usage
+
+First, you will want to import it. There are a few ways you can do this.
+
+#### HTML (loaded from the emulator)
+
+```html
+<script type="module" src="http://127.0.0.1:30158/client.js"></script>
+```
+
+#### JavaScript (loaded from the emulator)
+
+```javascript
+import { SuperShuckieClient } from "http://127.0.0.1:30158/client.js"
+```
+
+#### TypeScript (using source code directly)
+
+If you are using TypeScript, you can directly use the definitions and code from
+Super Shuckie's source tree at `/supershuckie-frontend-webserver/js`
+
+Ensure that client.d.ts and client.js are in the same directory. Then import it
+like this:
+
+```typescript
+import { SuperShuckieClient } from "./somepath/client"
+```
+
+### Example code
+
+```html
+<script type="module" src="http://127.0.0.1:30158/client.js"></script>
+<script type="module">
+    const shuckie = new SuperShuckieClient();
+    
+    async function update() {
+        const stats = await shuckie.stats()
+        
+        // start the timer (at a 1 second offset) if it has not already been set
+        if (stats.is_recording && stats.time_current == null) {
+            await shuckie.mark_start(1000)
+        }
+        
+        console.log(`Current timer: ${stats.time_current} milliseconds`)
+    }
+    
+    // update at 60 Hz
+    let busy = false
+    setInterval(async function() {
+        if(busy) {
+            return
+        }
+        busy = true
+        try {
+            await update()
+        } finally {
+            busy = false
+        }
+    }, 16.67)
+</script>
+
+```
+
+Refer to `client.d.ts` for documentation on this API.
+
+## REST command reference
+
+If you are not using JS or you do not wish to use the above API, you can also
+directly interact with Super Shuckie with these requests.
+
+### Table of contents
 
 - [increment-counter](#increment-counter)
 - [mark-start](#mark-start)
 - [mark-end](#mark-end)
 - [stats](#stats)
 
-## increment-counter
+### increment-counter
 
 Increment a counter. A replay must be recording for this to work.
 
@@ -28,7 +103,7 @@ Arguments:
 | `name`   | (required) | The name of the counter.                                     |
 | `by`     | 1          | Amount to increment (or decrement, if negative) the counter. |
 
-## mark-start
+### mark-start
 
 Mark the start of a replay and enables the timer feature. A replay must be
 recording for this to work.
@@ -44,7 +119,7 @@ Arguments:
 |----------|---------|-----------------------------|
 | `offset` | 0       | The offset in milliseconds. |
 
-## mark-end
+### mark-end
 
 Mark the start of a replay and enables the timer feature. A replay must be
 recording for this to work.
@@ -53,7 +128,7 @@ Usage:
 
 - `http://127.0.0.1:30158/mark-end`
 
-## stats
+### stats
 
 Get the current stats in JSON format. All timestamps are in milliseconds and are
 unsigned (non-negative) unless otherwise specified.
@@ -74,4 +149,4 @@ Usage:
 | `is_playing_back`      | `boolean`                | `true` if currently playing back a replay, `false` if not.                                                          |
 | `is_paused`            | `boolean`                | `true` if the user has manually paused, `false` if not.                                                             |
 | `current_speed`        | `number`                 | The current playback speed multiplier.                                                                              |
-| `counters`             | `record<string, number>` | The current values of all counters in the currently playing/recording replay.                                       |
+| `counters`             | `Record<string, number>` | The current values of all counters in the currently playing/recording replay.                                       |

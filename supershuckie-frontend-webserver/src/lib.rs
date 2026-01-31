@@ -3,6 +3,7 @@ use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::*;
+use std::time::Duration;
 use rouille::{Response, Server};
 use serde::Serialize;
 
@@ -37,7 +38,7 @@ impl SuperShuckieWebserver {
                         return emulator_not_available_error();
                     }
 
-                    match response.recv() {
+                    match response.recv_timeout(Duration::from_secs(60)) {
                         Ok(n) => Response::json(Arc::as_ref(&n)),
                         Err(_) => return emulator_not_available_error()
                     }
@@ -61,7 +62,7 @@ impl SuperShuckieWebserver {
                         return emulator_not_available_error();
                     }
 
-                    match response.recv() {
+                    match response.recv_timeout(Duration::from_secs(60)) {
                         Ok(true) => Response::empty_204(),
                         Ok(false) => Response::json(&Error {
                             error: "error (probably not recording a replay)".to_owned()
@@ -75,7 +76,7 @@ impl SuperShuckieWebserver {
                         return emulator_not_available_error()
                     }
 
-                    match response.recv() {
+                    match response.recv_timeout(Duration::from_secs(60)) {
                         Ok(true) => Response::empty_204(),
                         Ok(false) => Response::json(&Error {
                             error: "error (probably not recording a replay)".to_owned()
@@ -104,11 +105,26 @@ impl SuperShuckieWebserver {
                         }
                     };
 
-                    if backlog_sender.try_send(SuperShuckieServerCommand::IncrementCounter(name, by)).is_err() {
+                    let (sender, response) = channel();
+
+                    if backlog_sender.try_send(SuperShuckieServerCommand::IncrementCounter(sender, name, by)).is_err() {
                         return emulator_not_available_error();
                     }
 
-                    Response::empty_204()
+                    match response.recv_timeout(Duration::from_secs(60)) {
+                        Ok(true) => Response::empty_204(),
+                        Ok(false) => Response::json(&Error {
+                            error: "error (probably not recording a replay)".to_owned()
+                        }).with_status_code(404),
+                        Err(_) => return emulator_not_available_error()
+                    }
+                }
+                "/client.js" => {
+                    Response::text(include_str!("../js/client.js"))
+                        .with_unique_header(
+                            "Content-Type",
+                            "text/javascript; charset=utf-8"
+                        )
                 }
                 _ => Response::empty_400()
             })
@@ -152,7 +168,7 @@ pub enum SuperShuckieServerCommand {
     Stats(Sender<Arc<Stats>>),
     MarkStart(Sender<bool>, u32),
     MarkEnd(Sender<bool>),
-    IncrementCounter(String, i64)
+    IncrementCounter(Sender<bool>, String, i64)
 }
 
 #[derive(Clone, Serialize)]
