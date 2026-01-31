@@ -11,11 +11,21 @@ pub struct SuperShuckieWebserver {
     should_continue: Arc<AtomicBool>
 }
 
+#[derive(Serialize)]
+struct Error {
+    error: String
+}
+
 impl SuperShuckieWebserver {
     /// Instantiate the server.
     pub fn new<S: ToSocketAddrs>(addr: S) -> Result<Self, String> {
-        let (backlog_sender, backlog_receiver) = channel();
+        let (backlog_sender, backlog_receiver) = sync_channel(2048);
         let should_continue = Arc::new(AtomicBool::new(true));
+        let emulator_not_available_error = || {
+            fixup_response(Response::json(&Error {
+                error: "failed (emulator is not available)".to_owned()
+            }).with_status_code(503))
+        };
 
         let server = Server::new(addr, move |request| {
             let url = request.url();
@@ -26,7 +36,7 @@ impl SuperShuckieWebserver {
 
                     match response.recv() {
                         Ok(n) => Response::json(Arc::as_ref(&n)),
-                        _ => Response::empty_404()
+                        Err(_) => return emulator_not_available_error()
                     }
                 },
                 "/mark-start" => {
@@ -34,11 +44,13 @@ impl SuperShuckieWebserver {
 
                     let offset = match request.get_param("offset") {
                         None => 0,
-                        Some(offset) => match offset.parse() {
+                        Some(n) => match n.parse() {
                             Ok(n) => n,
-                            Err(_) => {
-                                return fixup_response(Response::empty_400())
-                            }
+                            Err(_) => return fixup_response(
+                                Response::json(&Error {
+                                    error: format!("failed (can't parse {n} as an unsigned integer)")
+                                }).with_status_code(400)
+                            )
                         }
                     };
 
@@ -46,7 +58,10 @@ impl SuperShuckieWebserver {
 
                     match response.recv() {
                         Ok(true) => Response::empty_204(),
-                        _ => Response::empty_404()
+                        Ok(false) => Response::json(&Error {
+                            error: "error (probably not recording a replay)".to_owned()
+                        }).with_status_code(404),
+                        Err(_) => return emulator_not_available_error()
                     }
                 },
                 "/mark-end" => {
@@ -55,19 +70,30 @@ impl SuperShuckieWebserver {
 
                     match response.recv() {
                         Ok(true) => Response::empty_204(),
-                        _ => Response::empty_404()
+                        Ok(false) => Response::json(&Error {
+                            error: "error (probably not recording a replay)".to_owned()
+                        }).with_status_code(404),
+                        Err(_) => return emulator_not_available_error()
                     }
                 },
                 "/increment-counter" => {
                     let Some(name) = request.get_param("name") else {
-                        return fixup_response(Response::empty_400())
+                        return fixup_response(
+                            Response::json(&Error {
+                                error: "failed (missing the name parameter)".to_owned()
+                            }).with_status_code(400)
+                        )
                     };
 
                     let by = match request.get_param("by") {
                         None => 1,
                         Some(n) => match n.parse() {
                             Ok(n) => n,
-                            Err(_) => return fixup_response(Response::empty_204())
+                            Err(_) => return fixup_response(
+                                Response::json(&Error {
+                                    error: format!("failed (can't parse {n} as an integer)")
+                                }).with_status_code(400)
+                            )
                         }
                     };
 
