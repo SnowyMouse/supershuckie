@@ -568,6 +568,16 @@ void supershuckie_frontend_set_nds_jit(struct SuperShuckieFrontendRaw *frontend,
 bool supershuckie_frontend_get_ignore_speed_changes_in_replay(const struct SuperShuckieFrontendRaw *frontend);
 
 /**
+ * Get if keyframes are automatically resynced when playing back replays.
+ */
+bool supershuckie_frontend_get_auto_resync_keyframes_in_replay(const struct SuperShuckieFrontendRaw *frontend);
+
+/**
+ * Set if keyframes are automatically resynced when playing back replays.
+ */
+void supershuckie_frontend_set_auto_resync_keyframes_in_replay(struct SuperShuckieFrontendRaw *frontend, bool enabled);
+
+/**
  * Set if speed changes from the replay should be ignored when playing back replays.
  */
 void supershuckie_frontend_set_ignore_speed_changes_in_replay(struct SuperShuckieFrontendRaw *frontend, bool ignored);

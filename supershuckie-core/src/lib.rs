@@ -14,7 +14,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::{Display, Formatter};
 use core::num::NonZeroU64;
-use std::collections::BTreeMap;
+use alloc::collections::BTreeMap;
 use supershuckie_replay_recorder::replay_file::playback::{ReplayFilePlayer, ReplaySeekError};
 use supershuckie_replay_recorder::replay_file::record::{NonBlockingReplayFileRecorder, ReplayFileRecorder, ReplayFileRecorderFns, ReplayFileSink, ReplayFileWriteError};
 use supershuckie_replay_recorder::replay_file::{blake3_hash_to_ascii, ReplayFileMetadata, ReplayHeaderBlake3Hash, ReplayPatchFormat};
@@ -75,7 +75,8 @@ pub struct SuperShuckieCore {
     frames_since_last_keyframe: u64,
     frames_per_keyframe: u64,
     total_frames: u64,
-    ignore_speed_changes_in_replays: bool
+    ignore_speed_changes_in_replays: bool,
+    auto_resync_keyframes_in_replays: bool
 }
 
 #[derive(Clone, Debug)]
@@ -144,7 +145,8 @@ impl SuperShuckieCore {
             replay_counters: None,
             core: emulator_core,
             timestamp_provider,
-            ignore_speed_changes_in_replays: false
+            ignore_speed_changes_in_replays: false,
+            auto_resync_keyframes_in_replays: false
         }
     }
 
@@ -286,7 +288,11 @@ impl SuperShuckieCore {
                             let _ = self.core.load_save_state(state.as_slice());
                         },
                         Packet::Bookmark { .. } => {}
-                        Packet::Keyframe { .. } => {}
+                        Packet::Keyframe { state, .. } => {
+                            if self.auto_resync_keyframes_in_replays {
+                                let _ = self.core.load_save_state(state.as_slice());
+                            }
+                        }
                         Packet::DeltaKeyframe { .. } => {},
                         Packet::CompressedBlob { .. } => unreachable!("compressed blob"),
                         Packet::IncrementCounter { name, delta } => {
@@ -724,6 +730,11 @@ impl SuperShuckieCore {
         if self.replay_player.is_some() {
             self.match_replay_playback_speed();
         }
+    }
+
+    /// Set whether or not to automatically resync keyframes on playback
+    pub fn set_auto_resync_keyframes_in_replays(&mut self, resync: bool) {
+        self.auto_resync_keyframes_in_replays = resync;
     }
 
     fn match_replay_playback_speed(&mut self) {

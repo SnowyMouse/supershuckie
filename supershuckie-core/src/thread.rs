@@ -328,6 +328,12 @@ impl ThreadedSuperShuckieCore {
     pub fn set_ignore_speed_changes_in_replay(&self, ignored: bool) {
         let _ = self.sender.send(ThreadCommand::IgnoreSpeedChangesInReplay(ignored));
     }
+
+    /// Set whether or not to resync keyframes in replay playback.
+    #[inline]
+    pub fn set_auto_resync_keyframes_in_replay(&self, resync: bool) {
+        let _ = self.sender.send(ThreadCommand::AutoResyncKeyframesInReplay(resync));
+    }
 }
 
 impl Drop for ThreadedSuperShuckieCore {
@@ -366,7 +372,8 @@ enum ThreadCommand {
     MarkReplayEnd(Sender<(UnsignedInteger, TimestampMillis)>),
     Close,
     ChangeReplayCounter { name: String, delta: SignedInteger },
-    IgnoreSpeedChangesInReplay(bool)
+    IgnoreSpeedChangesInReplay(bool),
+    AutoResyncKeyframesInReplay(bool),
 }
 
 fn extend_counter_map(from: &BTreeMap<String, SignedInteger>, into: &mut BTreeMap<String, SignedInteger>) {
@@ -718,6 +725,9 @@ impl ThreadedSuperShuckieCoreThread {
             }
             ThreadCommand::IgnoreSpeedChangesInReplay(ignored) => {
                 self.core.set_ignore_speed_changes_in_replays(ignored)
+            }
+            ThreadCommand::AutoResyncKeyframesInReplay(resync) => {
+                self.core.set_auto_resync_keyframes_in_replays(resync)
             }
         }
     }

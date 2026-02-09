@@ -228,6 +228,7 @@ MainWindow::MainWindow(): QMainWindow() {
     this->sgb_enabled->setChecked(supershuckie_frontend_is_sgb_enabled(this->frontend));
     this->nds_jit->setChecked(supershuckie_frontend_get_nds_jit(this->frontend));
     this->ignore_speed_changes_in_replay->setChecked(supershuckie_frontend_get_ignore_speed_changes_in_replay(this->frontend));
+    this->auto_resync_keyframes_in_replay->setChecked(supershuckie_frontend_get_auto_resync_keyframes_in_replay(this->frontend));
 
     this->sdl.frontend = this->frontend;
     this->render_widget->setFocus(Qt::OtherFocusReason);
@@ -508,6 +509,10 @@ void MainWindow::set_up_replays_menu() {
     this->ignore_speed_changes_in_replay = this->replays_menu->addAction("Ignore speed changes in replay");
     connect(this->ignore_speed_changes_in_replay, SIGNAL(triggered()), this, SLOT(do_toggle_ignore_speed_changes_in_replay()));
     this->ignore_speed_changes_in_replay->setCheckable(true);
+
+    this->auto_resync_keyframes_in_replay = this->replays_menu->addAction("Auto-resync keyframes in replay");
+    connect(this->auto_resync_keyframes_in_replay, SIGNAL(triggered()), this, SLOT(do_toggle_auto_resync_keyframes_in_replay()));
+    this->auto_resync_keyframes_in_replay->setCheckable(true);
 }
 
 NumberedAction::NumberedAction(MainWindow *parent, const char *text, std::uint8_t number, on_activated activated): QAction(text, parent), number(number), parent(parent), activated_fn(activated) {
@@ -1152,4 +1157,8 @@ void MainWindow::do_toggle_external_commands() {
 
 void MainWindow::do_toggle_ignore_speed_changes_in_replay() {
     supershuckie_frontend_set_ignore_speed_changes_in_replay(this->frontend, this->ignore_speed_changes_in_replay->isChecked());
+}
+
+void MainWindow::do_toggle_auto_resync_keyframes_in_replay() {
+    supershuckie_frontend_set_auto_resync_keyframes_in_replay(this->frontend, this->auto_resync_keyframes_in_replay->isChecked());
 }

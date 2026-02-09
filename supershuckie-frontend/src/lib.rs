@@ -1350,9 +1350,25 @@ impl SuperShuckieFrontend {
         self.settings.replay.ignore_speed_changes_in_replays
     }
 
+    /// Set whether or not keyframes are automatically resynced on playback.
+    #[inline]
+    pub fn set_auto_resync_keyframes_in_replay(&mut self, resync: bool) {
+        self.settings.replay.auto_resync_keyframes_in_replays = resync;
+        self.core.set_auto_resync_keyframes_in_replay(resync);
+    }
+
+    /// Get whether or not keyframes are automatically resynced on playback.
+    #[inline]
+    pub fn get_auto_resync_keyframes_in_replay(&self) -> bool {
+        self.settings.replay.auto_resync_keyframes_in_replays
+    }
+
     fn after_switch_core(&mut self) {
         if self.settings.replay.ignore_speed_changes_in_replays {
             self.core.set_ignore_speed_changes_in_replay(true);
+        }
+        if self.settings.replay.auto_resync_keyframes_in_replays {
+            self.core.set_auto_resync_keyframes_in_replay(true);
         }
         self.update_video_mode();
     }

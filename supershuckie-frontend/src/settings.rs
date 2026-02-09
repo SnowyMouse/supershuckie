@@ -125,7 +125,10 @@ pub struct ReplaySettings {
     pub auto_pause_on_record: bool,
 
     #[serde(default = "ReplaySettings::IGNORE_SPEED_CHANGES_IN_REPLAYS")]
-    pub ignore_speed_changes_in_replays: bool
+    pub ignore_speed_changes_in_replays: bool,
+
+    #[serde(default = "ReplaySettings::AUTO_RESYNC_KEYFRAMES_IN_REPLAYS")]
+    pub auto_resync_keyframes_in_replays: bool
 }
 
 impl Default for ReplaySettings {
@@ -138,7 +141,8 @@ impl Default for ReplaySettings {
             auto_stop_playback_on_input: Self::AUTO_STOP_PLAYBACK_ON_INPUT(),
             auto_unpause_on_input: Self::AUTO_UNPAUSE_ON_INPUT(),
             auto_pause_on_record: Self::AUTO_PAUSE_ON_RECORD(),
-            ignore_speed_changes_in_replays: Self::IGNORE_SPEED_CHANGES_IN_REPLAYS()
+            ignore_speed_changes_in_replays: Self::IGNORE_SPEED_CHANGES_IN_REPLAYS(),
+            auto_resync_keyframes_in_replays: Self::AUTO_RESYNC_KEYFRAMES_IN_REPLAYS()
         }
     }
 }
@@ -154,6 +158,7 @@ impl ReplaySettings {
     const AUTO_UNPAUSE_ON_INPUT: fn() -> bool = || false;
     const AUTO_PAUSE_ON_RECORD: fn() -> bool = || false;
     const IGNORE_SPEED_CHANGES_IN_REPLAYS: fn() -> bool = || false;
+    const AUTO_RESYNC_KEYFRAMES_IN_REPLAYS: fn() -> bool = || false;
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

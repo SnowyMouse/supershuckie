@@ -836,3 +836,18 @@ pub extern "C" fn supershuckie_frontend_set_ignore_speed_changes_in_replay(
 ) {
     frontend.set_ignore_speed_changes_in_replays(ignored)
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_get_auto_resync_keyframes_in_replay(
+    frontend: &SuperShuckieFrontend
+) -> bool {
+    frontend.get_auto_resync_keyframes_in_replay()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_set_auto_resync_keyframes_in_replay(
+    frontend: &mut SuperShuckieFrontend,
+    ignored: bool
+) {
+    frontend.set_auto_resync_keyframes_in_replay(ignored)
+}
