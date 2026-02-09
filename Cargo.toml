@@ -13,20 +13,20 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.4.4"
+version = "0.4.5"
 edition = "2024"
 license = "GPL-3.0-only"
 rust-version = "1.89.0"
 
 [workspace.dependencies]
 # Keep up-to-date
-supershuckie-replay-recorder = { version = "0.4.4", path = "supershuckie-replay-recorder" }
-supershuckie-pokeabyte-integration = { version = "0.4.4", path = "supershuckie-pokeabyte-integration" }
-supershuckie-frontend-webserver = { version = "0.4.4", path = "supershuckie-frontend-webserver" }
-supershuckie-core = { version = "0.4.4", path = "supershuckie-core" }
-supershuckie-frontend = { version = "0.4.4", path = "supershuckie-frontend" }
-melonds-rs = { version = "0.4.4", path = "melonds-rs" }
-mgba-rs = { version = "0.4.4", path = "mgba-rs" }
+supershuckie-replay-recorder = { version = "0.4.5", path = "supershuckie-replay-recorder" }
+supershuckie-pokeabyte-integration = { version = "0.4.5", path = "supershuckie-pokeabyte-integration" }
+supershuckie-frontend-webserver = { version = "0.4.5", path = "supershuckie-frontend-webserver" }
+supershuckie-core = { version = "0.4.5", path = "supershuckie-core" }
+supershuckie-frontend = { version = "0.4.5", path = "supershuckie-frontend" }
+melonds-rs = { version = "0.4.5", path = "melonds-rs" }
+mgba-rs = { version = "0.4.5", path = "mgba-rs" }
 
 num_enum = "0.7.5"
 tinyvec = { version = "1.10.0", features = ["alloc"], default-features = false }
