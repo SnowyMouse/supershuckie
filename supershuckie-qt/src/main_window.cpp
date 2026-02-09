@@ -924,7 +924,7 @@ void MainWindow::do_play_replay() {
         return;
     }
 
-    char err[256];
+    char err[512];
     char fmt[512];
     
     if(!supershuckie_frontend_load_replay(this->frontend, text->c_str(), false, err, sizeof(err))) {

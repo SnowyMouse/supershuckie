@@ -614,7 +614,7 @@ impl SuperShuckieCore {
             }
 
             if metadata.bios_checksum != bios_checksum {
-                mismatched_list.push(ReplayPlayerMetadataMismatchKind::BIOSChecksumMismatch { replay: metadata.rom_checksum, loaded: bios_checksum })
+                mismatched_list.push(ReplayPlayerMetadataMismatchKind::BIOSChecksumMismatch { replay: metadata.bios_checksum, loaded: bios_checksum })
             }
 
             if metadata.emulator_core_name != core_name {
