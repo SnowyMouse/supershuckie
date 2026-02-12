@@ -24,7 +24,6 @@ SelectItemDialog::SelectItemDialog(MainWindow *parent, std::vector<std::string> 
         this->list->addItem(item.c_str());
     }
 
-    this->list->sortItems();
     this->list->connect(this->list, SIGNAL(itemActivated(QListWidgetItem *)), this, SLOT(accept()));
 
     layout->addWidget(this->list, 5, 0);

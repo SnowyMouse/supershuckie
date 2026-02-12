@@ -2,6 +2,7 @@ pub mod util;
 pub mod settings;
 
 use std::cell::OnceCell;
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use crate::settings::*;
 use crate::util::UTF8CString;
@@ -1586,6 +1587,33 @@ fn list_files_in_dir_with_extension(dir: &Path, extension: &str) -> Vec<UTF8CStr
         };
         options.push(stem_utf8.into());
     }
+
+    // Ensure the number at the end is compared numerically (if the rest is the same)
+    options.sort_by(|a: &UTF8CString, b: &UTF8CString| {
+        let a_str = a.as_str();
+        let b_str = b.as_str();
+
+        let a_split: Vec<&str> = a_str.rsplitn(2, '-').collect();
+        let b_split: Vec<&str> = b_str.rsplitn(2, '-').collect();
+
+        if a_split.len() != 2 || b_split.len() != 2 {
+            return a_str.cmp(b_str);
+        }
+
+        // 1 is the prefix, 0 is the suffix (because of rsplitn)
+        let prefix_cmp = a_split[1].cmp(&b_split[1]);
+        if prefix_cmp != Ordering::Equal {
+            return prefix_cmp;
+        }
+
+        let Ok(a_int) = a_split[0].parse::<i64>() else {
+            return a_str.cmp(b_str);
+        };
+        let Ok(b_int) = b_split[0].parse::<i64>() else {
+            return a_str.cmp(b_str);
+        };
+        a_int.cmp(&b_int)
+    });
 
     options
 }
