@@ -119,6 +119,134 @@ impl SuperShuckieWebserver {
                         Err(_) => return emulator_not_available_error()
                     }
                 }
+                "/enumerate-replays" => {
+                    let (sender, response) = channel();
+
+                    if backlog_sender.try_send(SuperShuckieServerCommand::EnumerateReplays(sender)).is_err() {
+                        return emulator_not_available_error();
+                    }
+
+                    match response.recv_timeout(Duration::from_secs(60)) {
+                        Ok(n) => Response::json(&n),
+                        Err(_) => return emulator_not_available_error()
+                    }
+                }
+                "/set-playback-speed" => {
+                    let speed = match request.get_param("speed") {
+                        None => return fixup_response(
+                            Response::json(&Error {
+                                error: "failed (missing the speed parameter)".to_owned()
+                            }).with_status_code(400)
+                        ),
+                        Some(n) => match n.parse::<f64>() {
+                            Ok(n) if n.is_finite() && n.is_sign_positive() => n,
+                            _ => return fixup_response(
+                                Response::json(&Error {
+                                    error: format!("failed (can't parse {n} as an float)")
+                                }).with_status_code(400)
+                            )
+                        }
+                    };
+
+                    let (sender, response) = channel();
+
+                    if backlog_sender.try_send(SuperShuckieServerCommand::SetPlaybackSpeed(sender, speed)).is_err() {
+                        return emulator_not_available_error();
+                    }
+
+                    match response.recv_timeout(Duration::from_secs(60)) {
+                        Ok(true) => Response::empty_204(),
+                        Ok(false) => Response::json(&Error {
+                            error: "error (probably not playing a game)".to_owned()
+                        }).with_status_code(404),
+                        Err(_) => return emulator_not_available_error()
+                    }
+                }
+                "/load-replay" => {
+                    let Some(name) = request.get_param("name") else {
+                        return fixup_response(
+                            Response::json(&Error {
+                                error: "failed (missing the name parameter)".to_owned()
+                            }).with_status_code(400)
+                        )
+                    };
+
+                    let (sender, response) = channel();
+
+                    if backlog_sender.try_send(SuperShuckieServerCommand::LoadReplay(sender, name)).is_err() {
+                        return emulator_not_available_error();
+                    }
+
+                    match response.recv_timeout(Duration::from_secs(60)) {
+                        Ok(true) => Response::empty_204(),
+                        Ok(false) => Response::json(&Error {
+                            error: "error (replay probably not found or is invalid)".to_owned()
+                        }).with_status_code(404),
+                        Err(_) => return emulator_not_available_error()
+                    }
+                }
+                "/set-paused" => {
+                    let paused = match request.get_param("paused") {
+                        None => return fixup_response(
+                            Response::json(&Error {
+                                error: "failed (missing the frame parameter)".to_owned()
+                            }).with_status_code(400)
+                        ),
+                        Some(n) => match n.parse() {
+                            Ok(paused) => paused,
+                            Err(_) => return fixup_response(
+                                Response::json(&Error {
+                                    error: format!("failed (can't parse {n} as an integer)")
+                                }).with_status_code(400)
+                            )
+                        }
+                    };
+
+                    let (sender, response) = channel();
+
+                    if backlog_sender.try_send(SuperShuckieServerCommand::SetPaused(sender, paused)).is_err() {
+                        return emulator_not_available_error();
+                    }
+
+                    match response.recv_timeout(Duration::from_secs(60)) {
+                        Ok(true) => Response::empty_204(),
+                        Ok(false) => Response::json(&Error {
+                            error: "error (unknown reason)".to_owned()
+                        }).with_status_code(404),
+                        Err(_) => return emulator_not_available_error()
+                    }
+                }
+                "/go-to-frame" => {
+                    let frame = match request.get_param("frame") {
+                        None => return fixup_response(
+                            Response::json(&Error {
+                                error: "failed (missing the frame parameter)".to_owned()
+                            }).with_status_code(400)
+                        ),
+                        Some(n) => match n.parse() {
+                            Ok(n) => n,
+                            Err(_) => return fixup_response(
+                                Response::json(&Error {
+                                    error: format!("failed (can't parse {n} as an integer)")
+                                }).with_status_code(400)
+                            )
+                        }
+                    };
+
+                    let (sender, response) = channel();
+
+                    if backlog_sender.try_send(SuperShuckieServerCommand::GoToFrame(sender, frame)).is_err() {
+                        return emulator_not_available_error();
+                    }
+
+                    match response.recv_timeout(Duration::from_secs(60)) {
+                        Ok(true) => Response::empty_204(),
+                        Ok(false) => Response::json(&Error {
+                            error: "error (probably not playing back a replay)".to_owned()
+                        }).with_status_code(404),
+                        Err(_) => return emulator_not_available_error()
+                    }
+                }
                 "/client.js" => {
                     Response::text(include_str!("../js/client.js"))
                         .with_unique_header(
@@ -168,7 +296,12 @@ pub enum SuperShuckieServerCommand {
     Stats(Sender<Arc<Stats>>),
     MarkStart(Sender<bool>, u32),
     MarkEnd(Sender<bool>),
-    IncrementCounter(Sender<bool>, String, i64)
+    IncrementCounter(Sender<bool>, String, i64),
+    GoToFrame(Sender<bool>, u32),
+    SetPaused(Sender<bool>, bool),
+    LoadReplay(Sender<bool>, String),
+    EnumerateReplays(Sender<Vec<String>>),
+    SetPlaybackSpeed(Sender<bool>, f64),
 }
 
 #[derive(Clone, Serialize)]

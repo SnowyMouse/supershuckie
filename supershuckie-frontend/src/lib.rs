@@ -1034,9 +1034,6 @@ impl SuperShuckieFrontend {
 
         if let Some(mut s) = self.web_server.take() {
             let mut stats: OnceCell<Arc<Stats>> = OnceCell::new();
-            let replay_state = self.get_replay_state();
-            let is_playing_back = replay_state == SuperShuckieReplayState::Playback;
-            let is_recording = replay_state == SuperShuckieReplayState::Recording;
 
             let reset_stats = |stats: &mut OnceCell<Arc<Stats>>| {
                 *stats = OnceCell::new();
@@ -1048,6 +1045,10 @@ impl SuperShuckieFrontend {
 
                     // use cached to avoid DoSing the emulator lol
                     let stats = what.last_read_elapsed_time_stats;
+
+                    let replay_state = what.get_replay_state();
+                    let is_playing_back = replay_state == SuperShuckieReplayState::Playback;
+                    let is_recording = replay_state == SuperShuckieReplayState::Recording;
 
                     let replay_stats = what.last_read_replay_stats.as_ref();
 
@@ -1104,8 +1105,44 @@ impl SuperShuckieFrontend {
                     }
                     SuperShuckieServerCommand::IncrementCounter(t, name, counter) => {
                         reset_stats(&mut stats);
-                        let _ = t.send(is_recording);
+                        let _ = t.send(self.get_replay_state() == SuperShuckieReplayState::Recording);
                         self.change_replay_counter(name, counter);
+                    }
+                    SuperShuckieServerCommand::SetPaused(t, paused) => {
+                        self.set_paused(paused);
+                        reset_stats(&mut stats);
+                        let _ = t.send(true);
+                    }
+                    SuperShuckieServerCommand::LoadReplay(t, replay) => {
+                        let _ = match self.load_replay_if_exists(&replay, true) {
+                            Ok(true) => t.send(true),
+                            _ => t.send(false)
+                        };
+                    }
+                    SuperShuckieServerCommand::GoToFrame(t, frame) => {
+                        if self.get_replay_state() != SuperShuckieReplayState::Playback {
+                            let _ = t.send(false);
+                            continue;
+                        }
+                        self.go_to_replay_frame(frame);
+                        let _ = t.send(true);
+                    }
+                    SuperShuckieServerCommand::EnumerateReplays(t) => {
+                        if let Some(n) = self.get_current_rom_name() {
+                            let _ = t.send(self.get_all_replays_for_rom(n).iter().map(UTF8CString::to_string).collect());
+                        }
+                        else {
+                            let _ = t.send(Vec::new());
+                        }
+                    }
+                    SuperShuckieServerCommand::SetPlaybackSpeed(t, speed) => {
+                        if self.is_game_running() {
+                            self.core.set_speed(Speed::from_multiplier_float(speed));
+                            let _ = t.send(true);
+                        }
+                        else {
+                            let _ = t.send(false);
+                        }
                     }
                 }
             }

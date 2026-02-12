@@ -1,9 +1,9 @@
 use tinyvec::TinyVec;
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::fmt::Formatter;
+use core::fmt::{Display, Formatter};
 use core::num::NonZeroU16;
-use std::cmp::Ordering;
+use core::cmp::Ordering;
 
 mod io;
 pub use io::*;
@@ -155,6 +155,12 @@ impl Speed {
 impl Default for Speed {
     fn default() -> Self {
         Self::from_multiplier_float(1.0)
+    }
+}
+
+impl Display for Speed {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        Display::fmt(&self.into_multiplier_float(), f)
     }
 }
 

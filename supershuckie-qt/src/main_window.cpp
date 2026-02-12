@@ -329,8 +329,14 @@ void MainWindow::tick() {
     }
     else {
         this->status_bar_time->hide();
-        this->playback_bar->hide();
         this->temporarily_paused = false;
+    }
+
+    if(state == SuperShuckieReplayState::SuperShuckieReplayState__Playback) {
+        this->playback_bar->show();
+    }
+    else {
+        this->playback_bar->hide();
     }
 
     char buf[1024];
@@ -948,7 +954,6 @@ void MainWindow::do_play_replay() {
     std::snprintf(fmt, sizeof(fmt), "Opened replay file \"%s\"", text->c_str());
     this->set_title(fmt);
 
-    this->playback_bar->show();
     this->refresh_action_states();
 }
 

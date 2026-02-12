@@ -43,13 +43,56 @@ export class SuperShuckieClient {
 
     async increment_counter(name, by = 1) {
         if(name === "" || typeof name !== "string") {
-            throw new TypeError("increment_counter counter must be a non-empty string")
+            throw new TypeError("increment_counter name must be a non-empty string")
         }
         if(typeof by !== "number" || !Number.isInteger(by)) {
             throw new TypeError("increment_counter by must be an integer")
         }
 
         const result = await fetch(this._construct_url(`increment-counter?name=${encodeURIComponent(name)}&by=${by}`))
+        await this._handle_error(result)
+    }
+
+    async enumerate_replays() {
+        const result = await fetch(this._construct_url(`enumerate-replays`))
+        await this._handle_error(result)
+
+        return result.json()
+    }
+
+    async load_replay(name) {
+        if(name === "" || typeof name !== "string") {
+            throw new TypeError("load_replay name must be a non-empty string")
+        }
+
+        const result = await fetch(this._construct_url(`load-replay?name=${encodeURIComponent(name)}`))
+        await this._handle_error(result)
+    }
+
+    async set_playback_speed(speed) {
+        if(typeof speed !== "number" || !Number.isFinite(speed) || speed < 0) {
+            throw new TypeError("set_playback_speed speed must be a positive float")
+        }
+
+        const result = await fetch(this._construct_url(`set-playback-speed?speed=${speed}`))
+        await this._handle_error(result)
+    }
+
+    async go_to_frame(frame) {
+        if(typeof frame !== "number" || !Number.isInteger(frame) || frame < 0) {
+            throw new TypeError("go_to_frame frame must be an unsigned integer")
+        }
+
+        const result = await fetch(this._construct_url(`go-to-frame?frame=${frame}`))
+        await this._handle_error(result)
+    }
+
+    async set_paused(paused) {
+        if(typeof paused !== "boolean") {
+            throw new TypeError("set_paused paused must be a boolean")
+        }
+
+        const result = await fetch(this._construct_url(`set-paused?paused=${paused}`))
         await this._handle_error(result)
     }
 

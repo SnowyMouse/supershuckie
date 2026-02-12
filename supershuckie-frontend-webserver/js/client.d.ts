@@ -43,6 +43,35 @@ export class SuperShuckieClient {
      * Get the stats
      */
     stats(): Promise<SuperShuckieStats>
+
+    /**
+     * List all replays
+     */
+    enumerate_replays(): Promise<string[]>
+
+    /**
+     * Load the replay
+     * @param name name of replay
+     */
+    load_replay(name: string): Promise<void>
+
+    /**
+     * Set the speed
+     * @param speed speed multiplayer (1 = 100%, 2 = 200%, 0.5 = 50%, etc.)
+     */
+    set_playback_speed(speed: number): Promise<void>
+
+    /**
+     * Go to the given frame index in a replay
+     * @param frame frame index
+     */
+    go_to_frame(frame: number): Promise<void>
+
+    /**
+     * Set whether or not playback is paused.
+     * @param paused if true, pause. otherwise, unpause
+     */
+    set_paused(paused: boolean): Promise<void>
 }
 
 /**

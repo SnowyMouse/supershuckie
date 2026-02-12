@@ -13,9 +13,14 @@ The server is `127.0.0.1:30158`
     - [TypeScript](#typescript)
   - [Example code](#example-code)
 - [Rest command reference](#rest-command-reference)
+  - [enumerate-replays](#enumerate-replays)
+  - [go-to-frame](#go-to-frame)
   - [increment-counter](#increment-counter)
+  - [load-replay](#load-replay)
   - [mark-start](#mark-start)
   - [mark-end](#mark-end)
+  - [set-paused](#set-paused)
+  - [set-playback-speed](#set-playback-speed)
   - [stats](#stats)
 
 ## JS API
@@ -102,6 +107,28 @@ Refer to [`client.d.ts`] for documentation on this API.
 If you are not using JS or you do not wish to use the above API, you can also
 directly interact with Super Shuckie with these requests.
 
+### enumerate-replays
+
+List all replays for the currently loaded ROM as a JSON string array.
+
+Usage:
+
+- `http://127.0.0.1:30158/enumerate-replays`
+
+### go-to-frame
+
+Go to the desired frame.
+
+Usage:
+
+- `http://127.0.0.1:30158/go-to-frame?frame=FRAME`
+
+Arguments:
+
+| Argument | Default    | Description     |
+|----------|------------|-----------------|
+| `frame`  | (required) | Frame to go to. |
+
 ### increment-counter
 
 Increment a counter. A replay must be recording for this to work.
@@ -117,6 +144,20 @@ Arguments:
 |----------|------------|--------------------------------------------------------------|
 | `name`   | (required) | The name of the counter.                                     |
 | `by`     | 1          | Amount to increment (or decrement, if negative) the counter. |
+
+### load-replay
+
+Load a replay.
+
+Usage:
+
+- `http://127.0.0.1:30158/load-replay?name=NAME`
+
+Arguments:
+
+| Argument | Default    | Description             |
+|----------|------------|-------------------------|
+| `name`   | (required) | The name of the replay. |
 
 ### mark-start
 
@@ -142,6 +183,36 @@ recording for this to work.
 Usage:
 
 - `http://127.0.0.1:30158/mark-end`
+
+### set-paused
+
+Set whether or not playback is paused.
+
+Usage:
+
+- `http://127.0.0.1:30158/set-paused?paused=PAUSED`
+
+Arguments:
+
+| Argument | Default    | Description                         |
+|----------|------------|-------------------------------------|
+| `paused` | (required) | `true` to pause, `false` to unpause |
+
+
+### set-playback-speed
+
+Set playback speed. This speed setting does not persist, so any speed change
+will override this.
+
+Usage:
+
+- `http://127.0.0.1:30158/set-playback-speed?speed=SPEED`
+
+Arguments:
+
+| Argument | Default    | Description                             |
+|----------|------------|-----------------------------------------|
+| `speed`  | (required) | The speed multiplier (i.e. 1.0 = 100%). |
 
 ### stats
 
