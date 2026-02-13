@@ -6,7 +6,7 @@ use std::boxed::Box;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::string::String;
-use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex, TryLockError, Weak};
 use std::time::Duration;
@@ -30,6 +30,7 @@ pub struct ThreadedSuperShuckieCore {
     desired_replay_frame: Arc<AtomicU32>,
     delta_replay_frames: Arc<AtomicI32>,
     elapsed_time: Arc<RwLock<ElapsedTimeStats>>,
+    playback_paused: Arc<AtomicBool>,
 
     playback: bool,
     playback_total_frames: UnsignedInteger,
@@ -60,6 +61,7 @@ impl ThreadedSuperShuckieCore {
         let delta_replay_frames = Arc::new(AtomicI32::new(0));
         let replay_errors = Arc::new(Mutex::new(Vec::new()));
         let replay_counters = Arc::new(Mutex::new(BTreeMap::new()));
+        let playback_paused = Arc::new(AtomicBool::new(false));
 
         let elapsed_time = Arc::new(RwLock::new(ElapsedTimeStats::default()));
 
@@ -70,12 +72,12 @@ impl ThreadedSuperShuckieCore {
             let delta_replay_frames = delta_replay_frames.clone();
             let replay_errors = replay_errors.clone();
             let replay_counters = replay_counters.clone();
+            let playback_paused = playback_paused.clone();
             let _ = std::thread::Builder::new().name("ThreadedSuperShuckieCore".to_owned()).spawn(move || {
                 ThreadedSuperShuckieCoreThread {
                     screens,
                     screens_queued: emulator_core.get_screens().to_vec(),
                     screen_ready_for_copy: false,
-                    is_running: false,
                     core: SuperShuckieCore::new(emulator_core, std_timestamp_provider()),
                     pokeabyte_integration: None,
                     receiver,
@@ -86,7 +88,8 @@ impl ThreadedSuperShuckieCore {
                     replay_errors,
                     replay_counters,
                     playback_frozen: false,
-                    freezes: BTreeMap::new()
+                    freezes: BTreeMap::new(),
+                    playback_paused
                 }.run_thread();
             });
         }
@@ -102,7 +105,8 @@ impl ThreadedSuperShuckieCore {
             replay_counters,
             playback: false,
             desired_replay_frame,
-            delta_replay_frames
+            delta_replay_frames,
+            playback_paused
         }
     }
 
@@ -121,15 +125,31 @@ impl ThreadedSuperShuckieCore {
     }
 
     /// Start running continuously.
+    ///
+    /// NOTE: This is blocking.
     pub fn start(&self) {
-        self.sender.send(ThreadCommand::Start)
+        if !self.playback_paused.load(Ordering::Relaxed) {
+            return
+        }
+
+        let (sender, receiver) = channel();
+        self.sender.send(ThreadCommand::Start(sender))
             .expect("Start - the core thread has crashed");
+        let _ = receiver.recv();
     }
 
     /// Pause running.
+    ///
+    /// NOTE: This is blocking.
     pub fn pause(&self) {
-        self.sender.send(ThreadCommand::Pause)
+        if self.playback_paused.load(Ordering::Relaxed) {
+            return
+        }
+
+        let (sender, receiver) = channel();
+        self.sender.send(ThreadCommand::Pause(sender))
             .expect("Pause - the core thread has crashed");
+        let _ = receiver.recv();
     }
 
     /// Pause running temporarily.
@@ -344,6 +364,11 @@ impl ThreadedSuperShuckieCore {
         let _ = self.sender.send(ThreadCommand::TransferPokeAByteIntegrationExternal(sender, to.sender.clone()));
         receiver.recv().unwrap_or(false)
     }
+
+    /// Get whether or not playback is currently paused.
+    pub fn is_paused(&self) -> bool {
+        self.playback_paused.load(Ordering::Relaxed)
+    }
 }
 
 impl Drop for ThreadedSuperShuckieCore {
@@ -358,8 +383,8 @@ impl Drop for ThreadedSuperShuckieCore {
 // TODO: Option to run just a single frame? Maybe also skip around a replay file to a given
 //       keyframe...
 enum ThreadCommand {
-    Start,
-    Pause,
+    Start(Sender<()>),
+    Pause(Sender<()>),
     SetPlaybackFrozen(bool),
     SetPokeAByteEnabled(bool, Sender<Result<(), String>>),
     StartRecordingReplay(PartialReplayRecordMetadata<std::io::BufWriter<File>, std::io::BufWriter<File>>),
@@ -410,11 +435,11 @@ struct ThreadedSuperShuckieCoreThread {
     delta_replay_frames: Arc<AtomicI32>,
     replay_errors: Arc<Mutex<Vec<ReplayFileWriteError>>>,
     replay_counters: Arc<Mutex<BTreeMap<String, SignedInteger>>>,
+    playback_paused: Arc<AtomicBool>,
     playback_frozen: bool,
 
     core: SuperShuckieCore,
     receiver: Receiver<ThreadCommand>,
-    is_running: bool,
     pokeabyte_integration: Option<PokeAByteIntegrationServer>,
     sender_close: Sender<()>,
 
@@ -440,8 +465,9 @@ impl ThreadedSuperShuckieCoreThread {
             self.refresh_screen_data();
             self.update_queued_screens();
             self.handle_pokeabyte_integration();
+            self.check_if_replay_stalled();
 
-            if self.is_running {
+            if self.is_running() {
                 if !self.playback_frozen {
                     self.core.run();
                 }
@@ -463,6 +489,12 @@ impl ThreadedSuperShuckieCoreThread {
         self.pokeabyte_integration = None;
 
         let _ = self.sender_close.send(());
+    }
+
+    fn check_if_replay_stalled(&mut self) {
+        if self.core.replay_stalled {
+            self.playback_paused.store(true, Ordering::Relaxed);
+        }
     }
 
     fn go_to_desired_frame(&mut self) {
@@ -522,9 +554,13 @@ impl ThreadedSuperShuckieCoreThread {
         };
     }
 
+    fn is_running(&self) -> bool {
+        !self.playback_paused.load(Ordering::Relaxed)
+    }
+
     /// Attempt to copy the screen data, or store it for later.
     fn refresh_screen_data(&mut self) {
-        if self.is_running && self.core.mid_frame {
+        if self.is_running() && self.core.mid_frame {
             return
         }
 
@@ -607,19 +643,20 @@ impl ThreadedSuperShuckieCoreThread {
         }
 
         // don't update reads or apply freezes mid-frame; it's too slow
-        if self.core.mid_frame && self.is_running {
+        let is_running = self.is_running();
+        if self.core.mid_frame && is_running {
             return;
         }
 
         // apply freezes immediately regardless of frame skipping setting
-        if self.is_running {
+        if is_running {
             for (address, data) in &self.freezes {
                 self.core.enqueue_write(*address as u32, data.clone());
             }
         }
 
         // handle frame skipping unless we're paused (or we haven't set up yet)
-        if !session.is_first_frame() && self.is_running && let Some(skipping) = session.config.frame_skip && self.core.total_frames % ((skipping as u64) + 1) != 0 {
+        if !session.is_first_frame() && is_running && let Some(skipping) = session.config.frame_skip && self.core.total_frames % ((skipping as u64) + 1) != 0 {
             return
         }
 
@@ -635,17 +672,20 @@ impl ThreadedSuperShuckieCoreThread {
 
     fn handle_command(&mut self, command: ThreadCommand) {
         match command {
-            ThreadCommand::Start => {
-                if !self.is_running {
-                    self.is_running = true;
+            ThreadCommand::Start(sender) => {
+                if self.playback_paused.swap(false, Ordering::Relaxed) {
+                    if self.core.replay_stalled {
+                        self.core.go_to_replay_frame(0);
+                    }
                     self.core.unpause_timer();
                 }
+                let _ = sender.send(());
             }
-            ThreadCommand::Pause => {
-                if self.is_running {
-                    self.is_running = false;
+            ThreadCommand::Pause(sender) => {
+                if !self.playback_paused.swap(true, Ordering::Relaxed) {
                     self.core.pause_timer();
                 }
+                let _ = sender.send(());
             }
             ThreadCommand::SetPokeAByteEnabled(enabled, err) => {
                 if !enabled && self.pokeabyte_integration.is_some() {
@@ -673,7 +713,7 @@ impl ThreadedSuperShuckieCoreThread {
 
                 // FIXME: error if this fails
                 self.core.start_recording_replay(metadata).expect("FAILED TO START RECORDING REPLAY OH NO");
-                if !self.is_running {
+                if !self.is_running() {
                     self.core.pause_timer();
                 }
             }
@@ -715,7 +755,7 @@ impl ThreadedSuperShuckieCoreThread {
                 if let Err(e) = self.core.attach_replay_player(player, allow_mismatched) {
                     let _ = errors.send(e);
                 }
-                if !self.is_running {
+                if !self.is_running() {
                     self.core.pause_timer();
                 }
             }

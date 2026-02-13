@@ -777,10 +777,12 @@ void MainWindow::load_rom(const char *path) {
 
 void MainWindow::do_close_rom() {
     supershuckie_frontend_close_rom(this->frontend);
+    supershuckie_frontend_set_paused(this->frontend, false);
 }
 
 void MainWindow::do_unload_rom() {
     supershuckie_frontend_unload_rom(this->frontend);
+    supershuckie_frontend_set_paused(this->frontend, false);
 }
 
 void MainWindow::do_new_game() noexcept {

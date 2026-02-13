@@ -123,8 +123,6 @@ pub struct SuperShuckieFrontend {
     last_read_elapsed_time_stats: ElapsedTimeStats,
     last_read_replay_stats: Option<LastReadReplayCropData>,
 
-    paused: bool,
-
     settings: Settings
 }
 
@@ -155,7 +153,6 @@ impl SuperShuckieFrontend {
             current_save_state_history_position: 0,
             recording_replay_file: None,
             pokeabyte_error: None,
-            paused: false,
             config_dir: config_dir.as_ref().to_owned(),
             web_server: None,
             external_commands_error: None,
@@ -570,7 +567,7 @@ impl SuperShuckieFrontend {
                     self.core.hard_reset();
                 }
                 Control::Pause => if pressed && self.is_game_running() {
-                    self.set_paused(!self.paused);
+                    self.set_paused(!self.is_paused());
                 }
 
                 Control::A => unreachable!(),
@@ -735,7 +732,7 @@ impl SuperShuckieFrontend {
     fn switch_core(&mut self, core: ThreadedSuperShuckieCore) {
         self.before_unload_or_reload_rom();
         let was_transferred = self.settings.pokeabyte.enabled && self.core.transfer_pokeabyte_integration(&core);
-        self.core = core;
+        self.assign_core(core);
         self.after_switch_core();
 
         self.force_refresh_screens();
@@ -744,9 +741,14 @@ impl SuperShuckieFrontend {
         if !was_transferred && self.settings.pokeabyte.enabled {
             let _ = self.set_pokeabyte_enabled(true);
         }
-        if !self.paused {
-            self.core.start();
+    }
+
+    fn assign_core(&mut self, new_core: ThreadedSuperShuckieCore) {
+        let was_paused = self.core.is_paused();
+        if was_paused {
+            new_core.pause();
         }
+        self.core = new_core;
     }
 
     fn reset_save_state_history(&mut self) {
@@ -829,7 +831,7 @@ impl SuperShuckieFrontend {
     /// Unload the ROM without saving.
     pub fn unload_rom(&mut self) {
         self.before_unload_or_reload_rom();
-        self.core = ThreadedSuperShuckieCore::new(Box::new(NullEmulatorCore));
+        self.assign_core(ThreadedSuperShuckieCore::new(Box::new(NullEmulatorCore)));
         self.save_file = None;
         self.rom_name = None;
         self.emulator_type = None;
@@ -839,15 +841,11 @@ impl SuperShuckieFrontend {
 
     /// Set whether or not the game is paused.
     pub fn set_paused(&mut self, paused: bool) {
-        self.paused = paused;
-
-        if self.is_game_running() {
-            if paused {
-                self.core.pause();
-            }
-            else {
-                self.core.start();
-            }
+        if paused {
+            self.core.pause();
+        }
+        else {
+            self.core.start();
         }
     }
 
@@ -858,7 +856,7 @@ impl SuperShuckieFrontend {
 
     /// Get whether or not the game is manually paused
     pub fn is_paused(&self) -> bool {
-        self.paused
+        self.core.is_paused()
     }
 
     /// Save the SRAM.
