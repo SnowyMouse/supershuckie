@@ -89,6 +89,7 @@ export interface SuperShuckieStats {
     is_recording: boolean,
     is_playing_back: boolean,
     is_paused: boolean,
+    is_playback_finished: boolean,
 
     counters: Record<string, number>,
 

@@ -31,6 +31,7 @@ pub struct ThreadedSuperShuckieCore {
     delta_replay_frames: Arc<AtomicI32>,
     elapsed_time: Arc<RwLock<ElapsedTimeStats>>,
     playback_paused: Arc<AtomicBool>,
+    replay_stalled: Arc<AtomicBool>,
 
     playback: bool,
     playback_total_frames: UnsignedInteger,
@@ -62,6 +63,7 @@ impl ThreadedSuperShuckieCore {
         let replay_errors = Arc::new(Mutex::new(Vec::new()));
         let replay_counters = Arc::new(Mutex::new(BTreeMap::new()));
         let playback_paused = Arc::new(AtomicBool::new(false));
+        let replay_stalled = Arc::new(AtomicBool::new(false));
 
         let elapsed_time = Arc::new(RwLock::new(ElapsedTimeStats::default()));
 
@@ -73,6 +75,7 @@ impl ThreadedSuperShuckieCore {
             let replay_errors = replay_errors.clone();
             let replay_counters = replay_counters.clone();
             let playback_paused = playback_paused.clone();
+            let replay_stalled = replay_stalled.clone();
             let _ = std::thread::Builder::new().name("ThreadedSuperShuckieCore".to_owned()).spawn(move || {
                 ThreadedSuperShuckieCoreThread {
                     screens,
@@ -88,6 +91,7 @@ impl ThreadedSuperShuckieCore {
                     delta_replay_frames,
                     replay_errors,
                     replay_counters,
+                    replay_stalled,
                     playback_frozen: false,
                     freezes: BTreeMap::new(),
                     playback_paused
@@ -107,7 +111,8 @@ impl ThreadedSuperShuckieCore {
             playback: false,
             desired_replay_frame,
             delta_replay_frames,
-            playback_paused
+            playback_paused,
+            replay_stalled
         }
     }
 
@@ -370,6 +375,11 @@ impl ThreadedSuperShuckieCore {
     pub fn is_paused(&self) -> bool {
         self.playback_paused.load(Ordering::Relaxed)
     }
+
+    /// Get whether or not replay playback is finished or stalled.
+    pub fn is_replay_playback_finished(&self) -> bool {
+        self.replay_stalled.load(Ordering::Relaxed)
+    }
 }
 
 impl Drop for ThreadedSuperShuckieCore {
@@ -447,7 +457,8 @@ struct ThreadedSuperShuckieCoreThread {
 
     elapsed_time: Arc<RwLock<ElapsedTimeStats>>,
 
-    freezes: BTreeMap<u64, ByteVec>
+    freezes: BTreeMap<u64, ByteVec>,
+    replay_stalled: Arc<AtomicBool>,
 }
 
 impl ThreadedSuperShuckieCoreThread {
@@ -494,6 +505,7 @@ impl ThreadedSuperShuckieCoreThread {
     }
 
     fn check_if_replay_stalled(&mut self) {
+        self.replay_stalled.store(self.core.replay_stalled, Ordering::Relaxed);
         if self.core.replay_stalled {
             self.playback_paused.store(true, Ordering::Relaxed);
         }

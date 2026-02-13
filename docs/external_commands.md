@@ -234,5 +234,6 @@ Usage:
 | `is_recording`         | `boolean`                | `true` if currently recording a replay, `false` if not.                                                             |
 | `is_playing_back`      | `boolean`                | `true` if currently playing back a replay, `false` if not.                                                          |
 | `is_paused`            | `boolean`                | `true` if the user has manually paused, `false` if not.                                                             |
+| `is_playback_finished` | `boolean`                | `true` if the current replay has reached the end, `false` if not (or no replay playing).                            |
 | `current_speed`        | `number`                 | The current playback speed multiplier.                                                                              |
 | `counters`             | `Record<string, number>` | The current values of all counters in the currently playing/recording replay.                                       |

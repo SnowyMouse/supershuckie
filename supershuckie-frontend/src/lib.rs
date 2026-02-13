@@ -1042,7 +1042,7 @@ impl SuperShuckieFrontend {
 
         if let Some(mut s) = self.web_server.take() {
             let mut stats: OnceCell<Arc<Stats>> = OnceCell::new();
-            let mut replays: OnceCell<Arc<Vec<String>>> = OnceCell::new();
+            let replays: OnceCell<Arc<Vec<String>>> = OnceCell::new();
 
             let reset_stats = |stats: &mut OnceCell<Arc<Stats>>| {
                 *stats = OnceCell::new();
@@ -1058,6 +1058,7 @@ impl SuperShuckieFrontend {
                     let replay_state = what.get_replay_state();
                     let is_playing_back = replay_state == SuperShuckieReplayState::Playback;
                     let is_recording = replay_state == SuperShuckieReplayState::Recording;
+                    let is_playback_finished = what.core.is_replay_playback_finished();
 
                     let replay_stats = what.last_read_replay_stats.as_ref();
 
@@ -1092,6 +1093,7 @@ impl SuperShuckieFrontend {
                         total_elapsed_frames: stats.frames,
                         is_playing_back,
                         is_recording,
+                        is_playback_finished,
                         current_speed: stats.speed.into_multiplier_float(),
                         counters,
                         is_paused: what.is_paused(),

@@ -318,6 +318,7 @@ pub struct Stats {
     pub is_recording: bool,
     pub is_playing_back: bool,
     pub is_paused: bool,
+    pub is_playback_finished: bool,
 
     pub counters: BTreeMap<String, i64>,
     
