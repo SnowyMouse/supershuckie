@@ -127,7 +127,7 @@ impl SuperShuckieWebserver {
                     }
 
                     match response.recv_timeout(Duration::from_secs(60)) {
-                        Ok(n) => Response::json(&n),
+                        Ok(n) => Response::json(n.as_ref()),
                         Err(_) => return emulator_not_available_error()
                     }
                 }
@@ -301,7 +301,7 @@ pub enum SuperShuckieServerCommand {
     GoToFrame(Sender<bool>, u32),
     SetPaused(Sender<bool>, bool),
     LoadReplay(Sender<bool>, String),
-    EnumerateReplays(Sender<Vec<String>>),
+    EnumerateReplays(Sender<Arc<Vec<String>>>),
     SetPlaybackSpeed(Sender<bool>, f64),
 }
 

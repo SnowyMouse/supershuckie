@@ -1042,6 +1042,7 @@ impl SuperShuckieFrontend {
 
         if let Some(mut s) = self.web_server.take() {
             let mut stats: OnceCell<Arc<Stats>> = OnceCell::new();
+            let mut replays: OnceCell<Arc<Vec<String>>> = OnceCell::new();
 
             let reset_stats = |stats: &mut OnceCell<Arc<Stats>>| {
                 *stats = OnceCell::new();
@@ -1136,12 +1137,15 @@ impl SuperShuckieFrontend {
                         let _ = t.send(true);
                     }
                     SuperShuckieServerCommand::EnumerateReplays(t) => {
-                        if let Some(n) = self.get_current_rom_name() {
-                            let _ = t.send(self.get_all_replays_for_rom(n).iter().map(UTF8CString::to_string).collect());
-                        }
-                        else {
-                            let _ = t.send(Vec::new());
-                        }
+                        let replays = replays.get_or_init(|| {
+                            if let Some(n) = self.get_current_rom_name() {
+                                Arc::new(self.get_all_replays_for_rom(n).iter().map(UTF8CString::to_string).collect())
+                            }
+                            else {
+                                Arc::new(Vec::new())
+                            }
+                        }).clone();
+                        let _ = t.send(replays);
                     }
                     SuperShuckieServerCommand::SetPlaybackSpeed(t, speed) => {
                         if self.is_game_running() {
