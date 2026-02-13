@@ -107,6 +107,7 @@ private:
     QAction *nds_jit;
     QAction *ignore_speed_changes_in_replay;
     QAction *auto_resync_keyframes_in_replay;
+    QAction *continue_last_replay;
 
     QAction *sgb_enabled;
     QMenu *game_boy_settings;
@@ -215,6 +216,7 @@ private slots:
     void do_toggle_external_commands();
     void do_toggle_ignore_speed_changes_in_replay();
     void do_toggle_auto_resync_keyframes_in_replay();
+    void do_continue_last_replay();
 };
 
 class NumberedAction: public QAction {

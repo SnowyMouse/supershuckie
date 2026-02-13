@@ -15,6 +15,7 @@ use std::num::{NonZeroU64, NonZeroU8};
 use std::path::{absolute, Path, PathBuf};
 use std::sync::Arc;
 use std::io::BufWriter;
+use std::time::Duration;
 use num_enum::TryFromPrimitive;
 use supershuckie_core::emulator::{EmulatorCore, GameBoyColor, Input, Model, PartialReplayRecordMetadata, ScreenData, NullEmulatorCore, NintendoDS, GameBoyAdvance};
 use supershuckie_core::{std_timestamp_provider, ElapsedTimeStats, ReplayPlayerAttachError, Speed, SuperShuckieRapidFire, ThreadedSuperShuckieCore};
@@ -108,6 +109,7 @@ pub struct SuperShuckieFrontend {
     current_toggled_input: Option<Input>,
     current_save_state_history: Vec<Vec<u8>>,
     current_save_state_history_position: usize,
+    current_replay: Option<UTF8CString>,
 
     web_server: Option<SuperShuckieWebserver>,
     external_commands_error: Option<UTF8CString>,
@@ -122,6 +124,8 @@ pub struct SuperShuckieFrontend {
 
     last_read_elapsed_time_stats: ElapsedTimeStats,
     last_read_replay_stats: Option<LastReadReplayCropData>,
+
+    last_replay_and_frame: Option<(UTF8CString, u32)>,
 
     settings: Settings
 }
@@ -159,6 +163,8 @@ impl SuperShuckieFrontend {
             connected_controllers: BTreeMap::new(),
             last_read_replay_stats: None,
             bios_override: None,
+            last_replay_and_frame: None,
+            current_replay: None
         };
 
         // This is not tied to the core, so we want to immediately enable this.
@@ -394,6 +400,8 @@ impl SuperShuckieFrontend {
         }
 
         self.save_file = Some(Arc::new("replay".into()));
+        self.current_replay = Some(name.into());
+        self.last_replay_and_frame = None;
 
         Ok(true)
     }
@@ -401,7 +409,13 @@ impl SuperShuckieFrontend {
     /// Stop playing back any currently playing replay.
     #[inline]
     pub fn stop_replay_playback(&mut self) {
+        let Some(r) = self.current_replay.take() else {
+            return
+        };
+
+        self.last_replay_and_frame = Some((r, self.last_read_elapsed_time_stats.frames));
         self.last_read_replay_stats = None;
+
         self.core.detach_replay_player();
         self.reset_speed();
         self.current_input = Input::default();
@@ -628,6 +642,7 @@ impl SuperShuckieFrontend {
         let path_cstr = UTF8CString::from_str(path_utf8);
         self.settings.recent_roms.recent_roms.retain(|i| i != &path_cstr);
         self.settings.recent_roms.recent_roms.insert(0, path_cstr);
+        self.last_replay_and_frame = None;
 
         Ok(())
     }
@@ -1174,7 +1189,7 @@ impl SuperShuckieFrontend {
 
     fn refresh_screen(&mut self, force: bool) {
         let current_stats = self.core.get_elapsed_time();
-        if force || current_stats.frames == self.last_read_elapsed_time_stats.frames {
+        if !force && current_stats.frames == self.last_read_elapsed_time_stats.frames {
             return
         }
 
@@ -1280,6 +1295,7 @@ impl SuperShuckieFrontend {
     fn before_unload_or_reload_rom(&mut self) {
         self.reset_save_state_history();
         self.stop_recording_replay();
+        self.stop_replay_playback();
         self.pokeabyte_error = None;
     }
 
@@ -1302,6 +1318,7 @@ impl SuperShuckieFrontend {
         }
 
         self.last_read_replay_stats = None;
+        self.last_replay_and_frame = None;
 
         self.core.start_recording_replay(PartialReplayRecordMetadata {
             rom_name: current_rom_name.to_string(),
@@ -1368,6 +1385,38 @@ impl SuperShuckieFrontend {
         if zero_frames {
             let _ = std::fs::remove_file(&replay_file.final_replay_path);
         }
+    }
+
+    #[inline]
+    pub fn continue_last_replay(&mut self) -> Result<bool, UTF8CString> {
+        let Some((name, frame)) = self.last_replay_and_frame.take() else {
+            return Ok(false)
+        };
+
+        self.load_replay_if_exists(name.as_str(), true)?;
+        let current_frame = self.core.get_elapsed_time().frames;
+
+        if frame == current_frame {
+            return Ok(true)
+        }
+
+        self.core.pause();
+        self.core.go_to_replay_frame(frame);
+
+        let mut infinite_loop_prevention = 0;
+        while self.core.get_elapsed_time().frames == current_frame && infinite_loop_prevention < 50 {
+            std::thread::sleep(Duration::from_millis(100));
+            self.core.rendezvous();
+            infinite_loop_prevention += 1;
+        }
+
+        self.refresh_screen(true);
+        Ok(true)
+    }
+
+    #[inline]
+    pub fn can_continue_last_replay(&self) -> bool {
+        self.last_replay_and_frame.is_some()
     }
 
     /// Get all saves for the given ROM.

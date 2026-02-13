@@ -377,6 +377,25 @@ bool supershuckie_frontend_load_replay(
 );
 
 /**
+ * Load the last replay at the position it was at.
+ *
+ * Safety:
+ * - error must point to a buffer of at least `error_len` bytes (it can be null if error_len is 0)
+ */
+bool supershuckie_frontend_continue_last_replay(
+    struct SuperShuckieFrontendRaw *frontend,
+    char *error,
+    size_t error_len
+);
+
+/**
+ * Return true if there is a replay to continue.
+ */
+bool supershuckie_frontend_can_continue_last_replay(
+    const struct SuperShuckieFrontendRaw *frontend
+);
+
+/**
  * Stop the currently playing replay, if any.
  */
 void supershuckie_frontend_stop_replay_playback(struct SuperShuckieFrontendRaw *frontend);

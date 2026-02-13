@@ -616,6 +616,28 @@ pub unsafe extern "C" fn supershuckie_frontend_load_replay(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn supershuckie_frontend_continue_last_replay(
+    frontend: &mut SuperShuckieFrontend,
+    error: *mut u8,
+    error_len: usize
+) -> bool {
+    match frontend.continue_last_replay() {
+        Ok(_) => true,
+        Err(e) => {
+            write_str_to_data(e.as_str(), unsafe { from_raw_parts_mut(error, error_len) });
+            false
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn supershuckie_frontend_can_continue_last_replay(
+    frontend: &SuperShuckieFrontend
+) -> bool {
+    frontend.can_continue_last_replay()
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn supershuckie_frontend_stop_replay_playback(
     frontend: &mut SuperShuckieFrontend
 ) {

@@ -489,14 +489,17 @@ void MainWindow::set_up_replays_menu() {
     this->resume_replay = this->replays_menu->addAction("Resume recording replay");
     this->replays_menu->addSeparator();
     this->play_replay = this->replays_menu->addAction("Play (unset)");
+    this->continue_last_replay = this->replays_menu->addAction("Continue last replay");
 
     connect(this->record_replay, SIGNAL(triggered()), this, SLOT(do_record_replay()));
     connect(this->resume_replay, SIGNAL(triggered()), this, SLOT(do_resume_replay()));
     connect(this->play_replay, SIGNAL(triggered()), this, SLOT(do_play_replay()));
+    connect(this->continue_last_replay, SIGNAL(triggered()), this, SLOT(do_continue_last_replay()));
 
     this->record_replay->setShortcut(QKeyCombination(Qt::ControlModifier, Qt::Key_R));
     this->resume_replay->setShortcut(QKeyCombination(Qt::ShiftModifier | Qt::ControlModifier, Qt::Key_R));
     this->play_replay->setShortcut(QKeyCombination(Qt::ShiftModifier | Qt::ControlModifier, Qt::Key_P));
+    this->continue_last_replay->setShortcut(QKeyCombination(Qt::ShiftModifier | Qt::ControlModifier, Qt::Key_C));
 
     this->replays_menu->addSeparator();
     this->auto_stop_replay_on_input = this->replays_menu->addAction("Stop playback on input");
@@ -700,6 +703,8 @@ void MainWindow::refresh_action_states() {
     for(auto &i : this->gbc_mode) {
         i->setChecked(i->number == gbc_mode);
     }
+
+    this->continue_last_replay->setEnabled(this->frontend != nullptr && supershuckie_frontend_can_continue_last_replay(this->frontend));
 
     switch(replay_state) {
         case SuperShuckieReplayState::SuperShuckieReplayState__Recording:
@@ -1168,4 +1173,11 @@ void MainWindow::do_toggle_ignore_speed_changes_in_replay() {
 
 void MainWindow::do_toggle_auto_resync_keyframes_in_replay() {
     supershuckie_frontend_set_auto_resync_keyframes_in_replay(this->frontend, this->auto_resync_keyframes_in_replay->isChecked());
+}
+
+void MainWindow::do_continue_last_replay() {
+    char buf[512];
+    if(!supershuckie_frontend_continue_last_replay(this->frontend, buf, sizeof(buf))) {
+        DISPLAY_ERROR_DIALOG("Failed to continue replay", "%s", buf);
+    }
 }

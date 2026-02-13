@@ -158,6 +158,14 @@ impl ThreadedSuperShuckieCore {
         let _ = receiver.recv();
     }
 
+    /// Block until this command is reached.
+    pub fn rendezvous(&self) {
+        let (sender, receiver) = channel();
+        self.sender.send(ThreadCommand::Rendezvous(sender))
+            .expect("Pause - the core thread has crashed");
+        let _ = receiver.recv();
+    }
+
     /// Pause running temporarily.
     pub fn set_playback_frozen(&self, paused: bool) {
         self.sender.send(ThreadCommand::SetPlaybackFrozen(paused))
@@ -421,7 +429,8 @@ enum ThreadCommand {
     IgnoreSpeedChangesInReplay(bool),
     AutoResyncKeyframesInReplay(bool),
     TransferPokeAByteIntegrationExternal(Sender<bool>, Sender<ThreadCommand>),
-    TransferPokeAByteIntegrationInternal(Sender<bool>, PokeAByteIntegrationServer, ReplayConsoleType, ReplayHeaderBlake3Hash)
+    TransferPokeAByteIntegrationInternal(Sender<bool>, PokeAByteIntegrationServer, ReplayConsoleType, ReplayHeaderBlake3Hash),
+    Rendezvous(Sender<()>),
 }
 
 fn extend_counter_map(from: &BTreeMap<String, SignedInteger>, into: &mut BTreeMap<String, SignedInteger>) {
@@ -814,6 +823,9 @@ impl ThreadedSuperShuckieCoreThread {
                 }
                 self.pokeabyte_integration = Some(server);
                 let _ = sender.send(true);
+            },
+            ThreadCommand::Rendezvous(sender) => {
+                let _ = sender.send(());
             }
         }
     }
