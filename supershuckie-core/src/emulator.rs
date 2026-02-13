@@ -13,7 +13,7 @@ pub use nintendo_ds::*;
 pub use game_boy_advance::*;
 
 use alloc::vec::Vec;
-use std::num::NonZeroU64;
+use core::num::NonZeroU64;
 use supershuckie_replay_recorder::ByteVec;
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash, ReplayPatchFormat};
 use supershuckie_replay_recorder::replay_file::record::{ReplayFileRecorderSettings, ReplayFileSink};
@@ -83,6 +83,12 @@ pub trait EmulatorCore: Send + 'static {
 
     /// Get the current core name.
     fn core_name(&self) -> &'static str;
+    
+    /// Return true if the core is a null core.
+    #[inline]
+    fn is_null(&self) -> bool {
+        false
+    }
 }
 
 /// Amount of time passed when running the emulator core.

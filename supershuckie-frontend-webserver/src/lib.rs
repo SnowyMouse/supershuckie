@@ -263,6 +263,7 @@ impl SuperShuckieWebserver {
         std::thread::spawn(move || {
             while should_continue_inner.load(Ordering::Relaxed) {
                 server.poll();
+                std::thread::sleep(Duration::from_millis(1));
             }
         });
 

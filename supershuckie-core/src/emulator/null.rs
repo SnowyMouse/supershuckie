@@ -92,4 +92,8 @@ impl EmulatorCore for NullEmulatorCore {
     fn core_name(&self) -> &'static str {
         "Null"
     }
+
+    fn is_null(&self) -> bool {
+        true
+    }
 }

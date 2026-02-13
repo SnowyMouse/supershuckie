@@ -1,9 +1,11 @@
 use crate::emulator::{EmulatorCore, Input, PartialReplayRecordMetadata, ScreenData};
 use crate::{std_timestamp_provider, ReplayPlayerAttachError, Speed};
 use crate::{SuperShuckieCore, SuperShuckieRapidFire};
+use spin::RwLock;
 use std::borrow::ToOwned;
 use std::boxed::Box;
 use std::collections::BTreeMap;
+use std::format;
 use std::fs::File;
 use std::string::String;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
@@ -11,15 +13,13 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex, TryLockError, Weak};
 use std::time::Duration;
 use std::vec::Vec;
-use std::format;
-use spin::RwLock;
+use supershuckie_pokeabyte_integration::PokeAByteEmulatorCommand;
 #[cfg(feature = "pokeabyte")]
 use supershuckie_pokeabyte_integration::PokeAByteIntegrationServer;
-use supershuckie_pokeabyte_integration::PokeAByteEmulatorCommand;
 use supershuckie_replay_recorder::replay_file::playback::ReplayFilePlayer;
 use supershuckie_replay_recorder::replay_file::record::ReplayFileWriteError;
-use supershuckie_replay_recorder::{ByteVec, SignedInteger, TimestampMillis, UnsignedInteger};
 use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash};
+use supershuckie_replay_recorder::{ByteVec, SignedInteger, TimestampMillis, UnsignedInteger};
 
 /// A (mostly) non-blocking, threaded wrapper for [`SuperShuckieCore`].
 pub struct ThreadedSuperShuckieCore {
@@ -76,6 +76,7 @@ impl ThreadedSuperShuckieCore {
             let _ = std::thread::Builder::new().name("ThreadedSuperShuckieCore".to_owned()).spawn(move || {
                 ThreadedSuperShuckieCoreThread {
                     screens,
+                    is_null: emulator_core.is_null(),
                     screens_queued: emulator_core.get_screens().to_vec(),
                     screen_ready_for_copy: false,
                     core: SuperShuckieCore::new(emulator_core, std_timestamp_provider()),
@@ -442,6 +443,7 @@ struct ThreadedSuperShuckieCoreThread {
     receiver: Receiver<ThreadCommand>,
     pokeabyte_integration: Option<PokeAByteIntegrationServer>,
     sender_close: Sender<()>,
+    is_null: bool,
 
     elapsed_time: Arc<RwLock<ElapsedTimeStats>>,
 
@@ -555,7 +557,7 @@ impl ThreadedSuperShuckieCoreThread {
     }
 
     fn is_running(&self) -> bool {
-        !self.playback_paused.load(Ordering::Relaxed)
+        !self.is_null && !self.playback_paused.load(Ordering::Relaxed)
     }
 
     /// Attempt to copy the screen data, or store it for later.
