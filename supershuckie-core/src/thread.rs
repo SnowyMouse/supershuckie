@@ -19,6 +19,7 @@ use supershuckie_pokeabyte_integration::PokeAByteEmulatorCommand;
 use supershuckie_replay_recorder::replay_file::playback::ReplayFilePlayer;
 use supershuckie_replay_recorder::replay_file::record::ReplayFileWriteError;
 use supershuckie_replay_recorder::{ByteVec, SignedInteger, TimestampMillis, UnsignedInteger};
+use supershuckie_replay_recorder::replay_file::{ReplayConsoleType, ReplayHeaderBlake3Hash};
 
 /// A (mostly) non-blocking, threaded wrapper for [`SuperShuckieCore`].
 pub struct ThreadedSuperShuckieCore {
@@ -334,6 +335,15 @@ impl ThreadedSuperShuckieCore {
     pub fn set_auto_resync_keyframes_in_replay(&self, resync: bool) {
         let _ = self.sender.send(ThreadCommand::AutoResyncKeyframesInReplay(resync));
     }
+
+    /// Transfer the given Poke-A-Byte integration if it is compatible.
+    ///
+    /// NOTE: This is blocking.
+    pub fn transfer_pokeabyte_integration(&self, to: &ThreadedSuperShuckieCore) -> bool {
+        let (sender, receiver) = channel();
+        let _ = self.sender.send(ThreadCommand::TransferPokeAByteIntegrationExternal(sender, to.sender.clone()));
+        receiver.recv().unwrap_or(false)
+    }
 }
 
 impl Drop for ThreadedSuperShuckieCore {
@@ -374,6 +384,8 @@ enum ThreadCommand {
     ChangeReplayCounter { name: String, delta: SignedInteger },
     IgnoreSpeedChangesInReplay(bool),
     AutoResyncKeyframesInReplay(bool),
+    TransferPokeAByteIntegrationExternal(Sender<bool>, Sender<ThreadCommand>),
+    TransferPokeAByteIntegrationInternal(Sender<bool>, PokeAByteIntegrationServer, ReplayConsoleType, ReplayHeaderBlake3Hash)
 }
 
 fn extend_counter_map(from: &BTreeMap<String, SignedInteger>, into: &mut BTreeMap<String, SignedInteger>) {
@@ -728,6 +740,26 @@ impl ThreadedSuperShuckieCoreThread {
             }
             ThreadCommand::AutoResyncKeyframesInReplay(resync) => {
                 self.core.set_auto_resync_keyframes_in_replays(resync)
+            },
+            ThreadCommand::TransferPokeAByteIntegrationExternal(sender, core_sender) => {
+                let Some(server) = self.pokeabyte_integration.take() else {
+                    let _ = sender.send(false);
+                    return;
+                };
+                let Some(replay_console_type) = self.core.core.replay_console_type() else {
+                    let _ = sender.send(false);
+                    return;
+                };
+                let rom_checksum = *self.core.core.rom_checksum();
+                let _ = core_sender.send(ThreadCommand::TransferPokeAByteIntegrationInternal(sender, server, replay_console_type, rom_checksum));
+            },
+            ThreadCommand::TransferPokeAByteIntegrationInternal(sender, server, replay_console_type, rom_checksum) => {
+                if self.core.core.rom_checksum() != &rom_checksum || self.core.core.replay_console_type() != Some(replay_console_type) {
+                    let _ = sender.send(false);
+                    return;
+                }
+                self.pokeabyte_integration = Some(server);
+                let _ = sender.send(true);
             }
         }
     }

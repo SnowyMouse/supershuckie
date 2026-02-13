@@ -734,9 +734,19 @@ impl SuperShuckieFrontend {
 
     fn switch_core(&mut self, core: ThreadedSuperShuckieCore) {
         self.before_unload_or_reload_rom();
+        let was_transferred = self.settings.pokeabyte.enabled && self.core.transfer_pokeabyte_integration(&core);
         self.core = core;
         self.after_switch_core();
-        self.after_load_rom();
+
+        self.force_refresh_screens();
+        self.current_input = Input::default();
+        self.core.set_speed(Speed::from_multiplier_float(self.settings.emulation.base_speed_multiplier));
+        if !was_transferred && self.settings.pokeabyte.enabled {
+            let _ = self.set_pokeabyte_enabled(true);
+        }
+        if !self.paused {
+            self.core.start();
+        }
     }
 
     fn reset_save_state_history(&mut self) {
@@ -1426,18 +1436,6 @@ impl SuperShuckieFrontend {
         self.core.read_screens(|screens| {
             self.callbacks.change_video_mode(screens, video_scale);
         });
-    }
-
-    fn after_load_rom(&mut self) {
-        self.force_refresh_screens();
-        self.current_input = Input::default();
-        self.core.set_speed(Speed::from_multiplier_float(self.settings.emulation.base_speed_multiplier));
-        if self.settings.pokeabyte.enabled {
-            let _ = self.set_pokeabyte_enabled(true);
-        }
-        if !self.paused {
-            self.core.start();
-        }
     }
 
     #[inline]
