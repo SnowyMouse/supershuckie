@@ -108,6 +108,8 @@ private:
     QAction *ignore_speed_changes_in_replay;
     QAction *auto_resync_keyframes_in_replay;
     QAction *continue_last_replay;
+    QAction *disable_save_states_when_recording;
+    QAction *disable_speed_changes_when_recording;
 
     QAction *sgb_enabled;
     QMenu *game_boy_settings;
@@ -217,6 +219,8 @@ private slots:
     void do_toggle_ignore_speed_changes_in_replay();
     void do_toggle_auto_resync_keyframes_in_replay();
     void do_continue_last_replay();
+    void do_toggle_disable_save_states_when_recording();
+    void do_toggle_disable_speed_changes_when_recording();
 };
 
 class NumberedAction: public QAction {

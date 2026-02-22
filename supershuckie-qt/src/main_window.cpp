@@ -229,6 +229,8 @@ MainWindow::MainWindow(): QMainWindow() {
     this->nds_jit->setChecked(supershuckie_frontend_get_nds_jit(this->frontend));
     this->ignore_speed_changes_in_replay->setChecked(supershuckie_frontend_get_ignore_speed_changes_in_replay(this->frontend));
     this->auto_resync_keyframes_in_replay->setChecked(supershuckie_frontend_get_auto_resync_keyframes_in_replay(this->frontend));
+    this->disable_save_states_when_recording->setChecked(supershuckie_frontend_get_disable_save_states_when_recording(this->frontend));
+    this->disable_speed_changes_when_recording->setChecked(supershuckie_frontend_get_disable_speed_changes_when_recording(this->frontend));
 
     this->sdl.frontend = this->frontend;
     this->render_widget->setFocus(Qt::OtherFocusReason);
@@ -522,6 +524,14 @@ void MainWindow::set_up_replays_menu() {
     this->auto_resync_keyframes_in_replay = this->replays_menu->addAction("Auto-resync keyframes in replay");
     connect(this->auto_resync_keyframes_in_replay, SIGNAL(triggered()), this, SLOT(do_toggle_auto_resync_keyframes_in_replay()));
     this->auto_resync_keyframes_in_replay->setCheckable(true);
+
+    this->disable_save_states_when_recording = this->replays_menu->addAction("Disable save states when recording");
+    connect(this->disable_save_states_when_recording, SIGNAL(triggered()), this, SLOT(do_toggle_disable_save_states_when_recording()));
+    this->disable_save_states_when_recording->setCheckable(true);
+
+    this->disable_speed_changes_when_recording = this->replays_menu->addAction("Disable speed changes when recording");
+    connect(this->disable_speed_changes_when_recording, SIGNAL(triggered()), this, SLOT(do_toggle_disable_speed_changes_when_recording()));
+    this->disable_speed_changes_when_recording->setCheckable(true);
 }
 
 NumberedAction::NumberedAction(MainWindow *parent, const char *text, std::uint8_t number, on_activated activated): QAction(text, parent), number(number), parent(parent), activated_fn(activated) {
@@ -664,21 +674,29 @@ void MainWindow::set_up_settings_menu() {
 void MainWindow::refresh_action_states() {
     bool game_loaded = this->is_game_running();
 
+    auto replay_state = this->frontend != nullptr ?
+        supershuckie_frontend_get_replay_state(this->frontend) : SuperShuckieReplayState::SuperShuckieReplayState__NoReplay;
+
     this->gameplay_menu->setEnabled(game_loaded);
     this->replays_menu->setEnabled(game_loaded);
     this->close_rom->setEnabled(game_loaded);
     this->unload_rom->setEnabled(game_loaded);
 
-    for(auto &state : this->quick_load_save_states) {
-        state->setEnabled(game_loaded);
-    }
-
     for(auto &state : this->quick_save_save_states) {
         state->setEnabled(game_loaded);
     }
 
-    this->undo_load_save_state->setEnabled(game_loaded);
-    this->redo_load_save_state->setEnabled(game_loaded);
+    // prevent loading any save states if playing back OR recording and it is disabled
+    bool enable_load_save_state_buttons = this->frontend != nullptr
+        && (!supershuckie_frontend_get_disable_save_states_when_recording(this->frontend) || replay_state != SuperShuckieReplayState::SuperShuckieReplayState__Recording)
+        && replay_state != SuperShuckieReplayState::SuperShuckieReplayState__Playback;
+
+    for(auto &state : this->quick_load_save_states) {
+        state->setEnabled(enable_load_save_state_buttons);
+    }
+
+    this->redo_load_save_state->setEnabled(enable_load_save_state_buttons);
+    this->undo_load_save_state->setEnabled(enable_load_save_state_buttons);
 
     this->record_replay->setText("Record replay");
     this->play_replay->setText("Play replay");
@@ -694,10 +712,6 @@ void MainWindow::refresh_action_states() {
     for(auto &scale : this->change_video_scale) {
         scale->setEnabled(game_loaded);
     }
-
-    auto replay_state = this->frontend != nullptr ?
-        supershuckie_frontend_get_replay_state(this->frontend) : SuperShuckieReplayState::SuperShuckieReplayState__NoReplay;
-
 
     auto gbc_mode = this->frontend != nullptr ? supershuckie_frontend_get_gbc_mode(this->frontend) : 0;
     for(auto &i : this->gbc_mode) {
@@ -724,13 +738,6 @@ void MainWindow::refresh_action_states() {
             this->reset_console->setEnabled(false);
             this->current_state->setText("PLAYBACK");
             this->current_state->show();
-
-            // prevent loading any save states (quick_save is still allowed)
-            this->redo_load_save_state->setEnabled(false);
-            this->undo_load_save_state->setEnabled(false);
-            for(auto &state : this->quick_load_save_states) {
-                state->setEnabled(false);
-            }
 
             this->play_replay->setText("Stop replay");
             this->game_boy_settings->setEnabled(false);
@@ -1180,4 +1187,13 @@ void MainWindow::do_continue_last_replay() {
     if(!supershuckie_frontend_continue_last_replay(this->frontend, buf, sizeof(buf))) {
         DISPLAY_ERROR_DIALOG("Failed to continue replay", "%s", buf);
     }
+}
+
+void MainWindow::do_toggle_disable_save_states_when_recording() {
+    supershuckie_frontend_set_disable_save_states_when_recording(this->frontend, this->disable_save_states_when_recording->isChecked());
+    this->refresh_action_states();
+}
+
+void MainWindow::do_toggle_disable_speed_changes_when_recording() {
+    supershuckie_frontend_set_disable_speed_changes_when_recording(this->frontend, this->disable_speed_changes_when_recording->isChecked());
 }

@@ -306,6 +306,16 @@ impl SuperShuckieFrontend {
             return Err("Game not running".into())
         }
 
+        let replay_state = self.get_replay_state();
+
+        if self.settings.replay.disable_save_states_when_recording && replay_state == SuperShuckieReplayState::Recording {
+            return Err("Cannot load save states when recording a replay as it is disabled".into());
+        }
+
+        if replay_state == SuperShuckieReplayState::Playback {
+            return Err("Cannot load save states when playing back a replay".into());
+        }
+
         let current_rom_name = self.get_current_rom_name().expect("no rom name when game is running in load_save_state_if_exists");
         let save_states_dir = self.get_save_states_dir_for_rom(current_rom_name);
         let save_state_file = save_states_dir.join(format!("{name}.{SAVE_STATE_EXTENSION}"));
@@ -462,6 +472,16 @@ impl SuperShuckieFrontend {
             return false // no more to go
         }
 
+        let replay_state = self.get_replay_state();
+
+        if self.settings.replay.disable_save_states_when_recording && replay_state == SuperShuckieReplayState::Recording {
+            return false;
+        }
+
+        if replay_state == SuperShuckieReplayState::Playback {
+            return false;
+        }
+
         let backup = self.create_save_state_now();
         self.current_save_state_history_position -= 1;
 
@@ -476,6 +496,16 @@ impl SuperShuckieFrontend {
     pub fn redo_load_save_state(&mut self) -> bool {
         if self.current_save_state_history_position == self.current_save_state_history.len() {
             return false // no more to go
+        }
+
+        let replay_state = self.get_replay_state();
+
+        if self.settings.replay.disable_save_states_when_recording && replay_state == SuperShuckieReplayState::Recording {
+            return false;
+        }
+
+        if replay_state == SuperShuckieReplayState::Playback {
+            return false;
         }
 
         let backup = self.create_save_state_now();
@@ -576,7 +606,11 @@ impl SuperShuckieFrontend {
         }
         else if self.is_game_running() {
             match control.control {
-                Control::Turbo => self.apply_turbo(value),
+                Control::Turbo => {
+                    if !self.settings.replay.disable_speed_changes_when_recording || self.get_replay_state() != SuperShuckieReplayState::Recording {
+                        self.apply_turbo(value)
+                    }
+                },
                 Control::Reset => if pressed {
                     self.core.hard_reset();
                 }
@@ -1462,6 +1496,31 @@ impl SuperShuckieFrontend {
     #[inline]
     pub fn get_auto_resync_keyframes_in_replay(&self) -> bool {
         self.settings.replay.auto_resync_keyframes_in_replays
+    }
+
+    /// Set whether or not save states can be created/loading when recording replays.
+    #[inline]
+    pub fn set_disable_save_states_when_recording(&mut self, disabled: bool) {
+        self.settings.replay.disable_save_states_when_recording = disabled;
+    }
+
+    /// Set whether or not save states can be created/loading when recording replays.
+    #[inline]
+    pub fn get_disable_save_states_when_recording(&self) -> bool {
+        self.settings.replay.disable_save_states_when_recording
+    }
+
+    /// Get whether or not turbo works when recording replays.
+    #[inline]
+    pub fn set_disable_speed_changes_when_recording(&mut self, disabled: bool) {
+        self.settings.replay.disable_speed_changes_when_recording = disabled;
+        self.reset_speed();
+    }
+
+    /// Get whether or not turbo works when recording replays.
+    #[inline]
+    pub fn get_disable_speed_changes_when_recording(&self) -> bool {
+        self.settings.replay.disable_speed_changes_when_recording
     }
 
     fn after_switch_core(&mut self) {

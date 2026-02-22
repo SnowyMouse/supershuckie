@@ -636,6 +636,26 @@ void supershuckie_frontend_reload_core(struct SuperShuckieFrontendRaw *frontend)
 enum SuperShuckieEmulatorType supershuckie_frontend_get_emulator_type(const struct SuperShuckieFrontendRaw *frontend);
 
 /**
+ * Get whether or not save states are disabled when recording
+ */
+bool supershuckie_frontend_get_disable_save_states_when_recording(const struct SuperShuckieFrontendRaw *frontend);
+
+/**
+ * Set whether or not save states are disabled when recording
+ */
+void supershuckie_frontend_set_disable_save_states_when_recording(struct SuperShuckieFrontendRaw *frontend, bool disabled);
+
+/**
+ * Get whether or not speed changes are disabled when recording
+ */
+bool supershuckie_frontend_get_disable_speed_changes_when_recording(const struct SuperShuckieFrontendRaw *frontend);
+
+/**
+ * Set whether or not speed changes are disabled when recording
+ */
+void supershuckie_frontend_set_disable_speed_changes_when_recording(struct SuperShuckieFrontendRaw *frontend, bool disabled);
+
+/**
  * Free the core
  *
  * Safety:

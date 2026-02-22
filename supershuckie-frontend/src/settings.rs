@@ -128,7 +128,13 @@ pub struct ReplaySettings {
     pub ignore_speed_changes_in_replays: bool,
 
     #[serde(default = "ReplaySettings::AUTO_RESYNC_KEYFRAMES_IN_REPLAYS")]
-    pub auto_resync_keyframes_in_replays: bool
+    pub auto_resync_keyframes_in_replays: bool,
+
+    #[serde(default = "ReplaySettings::DISABLE_SAVE_STATES_WHEN_RECORDING")]
+    pub disable_save_states_when_recording: bool,
+
+    #[serde(default = "ReplaySettings::DISABLE_SPEED_CHANGES_WHEN_RECORDING")]
+    pub disable_speed_changes_when_recording: bool,
 }
 
 impl Default for ReplaySettings {
@@ -142,7 +148,9 @@ impl Default for ReplaySettings {
             auto_unpause_on_input: Self::AUTO_UNPAUSE_ON_INPUT(),
             auto_pause_on_record: Self::AUTO_PAUSE_ON_RECORD(),
             ignore_speed_changes_in_replays: Self::IGNORE_SPEED_CHANGES_IN_REPLAYS(),
-            auto_resync_keyframes_in_replays: Self::AUTO_RESYNC_KEYFRAMES_IN_REPLAYS()
+            auto_resync_keyframes_in_replays: Self::AUTO_RESYNC_KEYFRAMES_IN_REPLAYS(),
+            disable_save_states_when_recording: Self::DISABLE_SAVE_STATES_WHEN_RECORDING(),
+            disable_speed_changes_when_recording: Self::DISABLE_SPEED_CHANGES_WHEN_RECORDING()
         }
     }
 }
@@ -159,6 +167,8 @@ impl ReplaySettings {
     const AUTO_PAUSE_ON_RECORD: fn() -> bool = || false;
     const IGNORE_SPEED_CHANGES_IN_REPLAYS: fn() -> bool = || false;
     const AUTO_RESYNC_KEYFRAMES_IN_REPLAYS: fn() -> bool = || false;
+    const DISABLE_SAVE_STATES_WHEN_RECORDING: fn() -> bool = || false;
+    const DISABLE_SPEED_CHANGES_WHEN_RECORDING: fn() -> bool = || false;
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

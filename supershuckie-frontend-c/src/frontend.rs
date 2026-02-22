@@ -873,3 +873,33 @@ pub extern "C" fn supershuckie_frontend_set_auto_resync_keyframes_in_replay(
 ) {
     frontend.set_auto_resync_keyframes_in_replay(ignored)
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_get_disable_save_states_when_recording(
+    frontend: &SuperShuckieFrontend
+) -> bool {
+    frontend.get_disable_save_states_when_recording()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_set_disable_save_states_when_recording(
+    frontend: &mut SuperShuckieFrontend,
+    disabled: bool
+) {
+    frontend.set_disable_save_states_when_recording(disabled)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_get_disable_speed_changes_when_recording(
+    frontend: &SuperShuckieFrontend
+) -> bool {
+    frontend.get_disable_speed_changes_when_recording()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn supershuckie_frontend_set_disable_speed_changes_when_recording(
+    frontend: &mut SuperShuckieFrontend,
+    disabled: bool
+) {
+    frontend.set_disable_speed_changes_when_recording(disabled)
+}
