@@ -489,7 +489,23 @@ void MainWindow::set_up_replays_menu() {
     
     this->record_replay = this->replays_menu->addAction("Record (unset)");
     this->resume_replay = this->replays_menu->addAction("Resume recording replay");
+
     this->replays_menu->addSeparator();
+
+    this->auto_pause_on_record = this->replays_menu->addAction("Start recordings paused");
+    connect(this->auto_pause_on_record, SIGNAL(triggered()), this, SLOT(do_toggle_auto_pause_on_record()));
+    this->auto_pause_on_record->setCheckable(true);
+
+    this->disable_save_states_when_recording = this->replays_menu->addAction("Disable save states when recording");
+    connect(this->disable_save_states_when_recording, SIGNAL(triggered()), this, SLOT(do_toggle_disable_save_states_when_recording()));
+    this->disable_save_states_when_recording->setCheckable(true);
+
+    this->disable_speed_changes_when_recording = this->replays_menu->addAction("Disable speed changes when recording");
+    connect(this->disable_speed_changes_when_recording, SIGNAL(triggered()), this, SLOT(do_toggle_disable_speed_changes_when_recording()));
+    this->disable_speed_changes_when_recording->setCheckable(true);
+
+    this->replays_menu->addSeparator();
+
     this->play_replay = this->replays_menu->addAction("Play (unset)");
     this->continue_last_replay = this->replays_menu->addAction("Continue last replay");
 
@@ -504,13 +520,10 @@ void MainWindow::set_up_replays_menu() {
     this->continue_last_replay->setShortcut(QKeyCombination(Qt::ShiftModifier | Qt::ControlModifier, Qt::Key_C));
 
     this->replays_menu->addSeparator();
+
     this->auto_stop_replay_on_input = this->replays_menu->addAction("Stop playback on input");
     this->auto_stop_replay_on_input->setCheckable(true);
     connect(this->auto_stop_replay_on_input, SIGNAL(triggered()), this, SLOT(do_toggle_stop_replay_on_input()));
-
-    this->auto_pause_on_record = this->replays_menu->addAction("Start recordings paused");
-    connect(this->auto_pause_on_record, SIGNAL(triggered()), this, SLOT(do_toggle_auto_pause_on_record()));
-    this->auto_pause_on_record->setCheckable(true);
 
     this->keyboard_replay_controls = this->replays_menu->addAction("Allow keyboard to control replay playback");
     connect(this->keyboard_replay_controls, SIGNAL(triggered()), this, SLOT(do_toggle_replay_keyboard_controls()));
@@ -524,14 +537,6 @@ void MainWindow::set_up_replays_menu() {
     this->auto_resync_keyframes_in_replay = this->replays_menu->addAction("Auto-resync keyframes in replay");
     connect(this->auto_resync_keyframes_in_replay, SIGNAL(triggered()), this, SLOT(do_toggle_auto_resync_keyframes_in_replay()));
     this->auto_resync_keyframes_in_replay->setCheckable(true);
-
-    this->disable_save_states_when_recording = this->replays_menu->addAction("Disable save states when recording");
-    connect(this->disable_save_states_when_recording, SIGNAL(triggered()), this, SLOT(do_toggle_disable_save_states_when_recording()));
-    this->disable_save_states_when_recording->setCheckable(true);
-
-    this->disable_speed_changes_when_recording = this->replays_menu->addAction("Disable speed changes when recording");
-    connect(this->disable_speed_changes_when_recording, SIGNAL(triggered()), this, SLOT(do_toggle_disable_speed_changes_when_recording()));
-    this->disable_speed_changes_when_recording->setCheckable(true);
 }
 
 NumberedAction::NumberedAction(MainWindow *parent, const char *text, std::uint8_t number, on_activated activated): QAction(text, parent), number(number), parent(parent), activated_fn(activated) {
