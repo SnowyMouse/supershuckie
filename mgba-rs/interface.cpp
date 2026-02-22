@@ -9,6 +9,7 @@
 
 #include <mgba/core/core.h>
 #include <mgba/core/log.h>
+#include <mgba/core/serialize.h>
 #include <mgba-util/vfs.h>
 #include <mgba/gba/core.h>
 
@@ -109,6 +110,9 @@ extern "C" MGBACoreRaw *mgba_rs_core_new(
         }
     }
 
+	core->core->rtc.override = RTC_FAKE_EPOCH;
+	core->core->rtc.value = 0;
+
     core->core->reset(core->core);
 
     return core;
@@ -146,20 +150,25 @@ extern "C" const void *mgba_rs_core_get_sram(const MGBACoreRaw *core, std::size_
     return sram;
 }
 
+#define SAVE_STATE_FLAGS (SAVESTATE_SAVEDATA | SAVESTATE_RTC)
+
 extern "C" std::size_t mgba_rs_core_create_save_state(const MGBACoreRaw *core, std::byte *data, std::size_t data_size) {
-    auto size = core->core->stateSize(core->core);
-    if(size <= data_size) {
-        core->core->saveState(core->core, data);
-    }
+	auto *vf = VFileMemChunk(NULL, 0);
+    bool read_successfully = mCoreSaveStateNamed(core->core, vf, SAVE_STATE_FLAGS);
+	size_t size = vf->size(vf);
+	if(size <= data_size && read_successfully) {
+	    vf->seek(vf, 0, SEEK_SET);
+        vf->read(vf, data, size);
+	}
+	vf->close(vf);
     return size;
 }
 
 extern "C" bool mgba_rs_core_load_save_state(MGBACoreRaw *core, const std::byte *data, std::size_t data_size) {
-    if(core->core->stateSize(core->core) != data_size) {
-        return false;
-    }
-    core->core->loadState(core->core, data);
-    return true;
+    auto *vf = VFileFromMemory(const_cast<std::byte *>(data), data_size);
+    auto success = mCoreLoadStateNamed(core->core, vf, SAVE_STATE_FLAGS);
+    vf->close(vf);
+    return success;
 }
 
 extern "C" void *mgba_rs_core_get_ewram(MGBACoreRaw *core) {
