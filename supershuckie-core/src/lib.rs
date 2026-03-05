@@ -165,6 +165,23 @@ impl SuperShuckieCore {
         self.replay_counters.as_ref()
     }
 
+    /// Get the audio sample rate, if supported.
+    pub fn audio_sample_rate(&self) -> Option<u32> {
+        self.core.audio_sample_rate()
+    }
+
+    /// Get the number of available stereo audio frames, if supported.
+    pub fn audio_available_samples(&mut self) -> usize {
+        self.core.audio_available_samples()
+    }
+
+    /// Read interleaved stereo audio samples into `out`.
+    ///
+    /// Returns the number of frames written.
+    pub fn read_audio(&mut self, out: &mut [i16]) -> usize {
+        self.core.read_audio(out)
+    }
+
     fn do_run_fn(&mut self, run_fn: fn(&mut dyn EmulatorCore) -> RunTime) {
         if !self.replay_stalled {
             self.before_run();

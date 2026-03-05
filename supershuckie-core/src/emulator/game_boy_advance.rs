@@ -120,6 +120,18 @@ impl EmulatorCore for GameBoyAdvance {
         self.core.get_sram().to_vec()
     }
 
+    fn audio_sample_rate(&self) -> Option<u32> {
+        Some(self.core.audio_sample_rate())
+    }
+
+    fn audio_available_samples(&mut self) -> usize {
+        self.core.audio_available_samples()
+    }
+
+    fn read_audio(&mut self, out: &mut [i16]) -> usize {
+        self.core.read_audio(out)
+    }
+
     #[inline]
     fn create_save_state(&self) -> Vec<u8> {
         self.core.create_save_state().expect("failed to create GBA save state")

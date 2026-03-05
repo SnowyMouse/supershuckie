@@ -218,6 +218,26 @@ pub unsafe extern "C" fn supershuckie_frontend_force_refresh_screens(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn supershuckie_frontend_get_audio_sample_rate(
+    frontend: &SuperShuckieFrontend
+) -> u32 {
+    frontend.audio_sample_rate()
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn supershuckie_frontend_read_audio(
+    frontend: &SuperShuckieFrontend,
+    out: *mut i16,
+    samples: usize
+) -> usize {
+    if out.is_null() || samples == 0 {
+        return 0;
+    }
+    let slice = unsafe { std::slice::from_raw_parts_mut(out, samples) };
+    frontend.read_audio(slice)
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn supershuckie_frontend_set_video_scale(
     frontend: &mut SuperShuckieFrontend,
     scale: u8

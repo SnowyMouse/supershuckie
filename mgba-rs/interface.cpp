@@ -10,6 +10,7 @@
 #include <mgba/core/core.h>
 #include <mgba/core/log.h>
 #include <mgba/core/serialize.h>
+#include <mgba-util/audio-buffer.h>
 #include <mgba-util/vfs.h>
 #include <mgba/gba/core.h>
 
@@ -134,6 +135,26 @@ extern "C" void mgba_rs_core_run_frame(MGBACoreRaw *core) {
 
 extern "C" void mgba_rs_core_reset(MGBACoreRaw *core) {
     core->core->reset(core->core);
+}
+
+extern "C" unsigned mgba_rs_core_audio_sample_rate(const MGBACoreRaw *core) {
+    return core->core->audioSampleRate(core->core);
+}
+
+extern "C" std::size_t mgba_rs_core_audio_available(MGBACoreRaw *core) {
+    auto *buffer = core->core->getAudioBuffer(core->core);
+    if(buffer == nullptr) {
+        return 0;
+    }
+    return mAudioBufferAvailable(buffer);
+}
+
+extern "C" std::size_t mgba_rs_core_audio_read(MGBACoreRaw *core, std::int16_t *out, std::size_t samples) {
+    auto *buffer = core->core->getAudioBuffer(core->core);
+    if(buffer == nullptr || samples == 0) {
+        return 0;
+    }
+    return mAudioBufferRead(buffer, out, samples);
 }
 
 extern "C" const std::uint32_t *mgba_rs_core_get_pixels(const MGBACoreRaw *core) {

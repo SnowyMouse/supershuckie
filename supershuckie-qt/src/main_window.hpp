@@ -13,6 +13,7 @@ class QMenu;
 class QAction;
 class QCloseEvent;
 class QLabel;
+struct SDL_AudioStream;
 
 namespace SuperShuckie64 {
 
@@ -122,6 +123,8 @@ private:
 
     QAction *use_number_row_for_quick_slots;
     QAction *show_status_bar;
+    QAction *enable_audio;
+    QAction *set_audio_volume;
     QAction *enable_pokeabyte_integration;
     QAction *enable_external_commands;
 
@@ -178,6 +181,16 @@ private:
     void stop_timer();
     void start_timer();
     int timer_stack = 0;
+    void refresh_audio_stream();
+    void pump_audio();
+    void destroy_audio_stream();
+    void apply_audio_gain();
+    void refresh_audio_menu_text();
+    SDL_AudioStream *audio_stream = nullptr;
+    std::uint32_t audio_sample_rate = 0;
+    std::uint32_t audio_failed_sample_rate = 0;
+    bool audio_enabled = true;
+    int audio_volume = 100;
 
     QString app_dir;
 
@@ -201,6 +214,8 @@ private slots:
     void do_undo_load_save_state();
     void do_redo_load_save_state();
     void do_toggle_status_bar();
+    void do_toggle_audio();
+    void do_set_audio_volume();
     void do_toggle_pokeabyte();
     void do_toggle_stop_replay_on_input();
     void do_open_controls_settings_dialog() noexcept;

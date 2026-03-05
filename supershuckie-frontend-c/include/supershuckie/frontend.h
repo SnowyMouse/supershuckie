@@ -134,6 +134,18 @@ void supershuckie_frontend_set_paused(struct SuperShuckieFrontendRaw *frontend, 
 void supershuckie_frontend_force_refresh_screens(struct SuperShuckieFrontendRaw *frontend);
 
 /**
+ * Get the audio sample rate, or 0 if audio is unsupported.
+ */
+uint32_t supershuckie_frontend_get_audio_sample_rate(const struct SuperShuckieFrontendRaw *frontend);
+
+/**
+ * Read interleaved stereo audio samples into `out`.
+ *
+ * Returns the number of samples written.
+ */
+size_t supershuckie_frontend_read_audio(struct SuperShuckieFrontendRaw *frontend, int16_t *out, size_t samples);
+
+/**
  * Set the video scale.
  *
  * If scale is 0, it will default to 1.

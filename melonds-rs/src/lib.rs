@@ -23,6 +23,9 @@ unsafe extern "C" {
     fn melonds_rs_core_create_save_state(core: *const MelonDSCoreHolderRaw, data: *mut u8, data_size: usize) -> usize;
     fn melonds_rs_core_load_save_state(core: *mut MelonDSCoreHolderRaw, data: *const u8, data_size: usize) -> bool;
     fn melonds_rs_core_get_ram(core: *mut MelonDSCoreHolderRaw) -> *mut [u8; 0x400000];
+    fn melonds_rs_core_audio_sample_rate(core: *const MelonDSCoreHolderRaw) -> u32;
+    fn melonds_rs_core_audio_available(core: *mut MelonDSCoreHolderRaw) -> i32;
+    fn melonds_rs_core_audio_read(core: *mut MelonDSCoreHolderRaw, out: *mut i16, samples: i32) -> i32;
     fn melonds_rs_core_set_date(
         core: *mut MelonDSCoreHolderRaw,
         year: u16,
@@ -101,6 +104,26 @@ impl Core {
     #[inline]
     pub fn get_main_ram_mut(&mut self) -> &mut [u8] {
         unsafe { &mut *melonds_rs_core_get_ram(self.inner) }.as_mut_slice()
+    }
+
+    #[inline]
+    pub fn audio_sample_rate(&self) -> u32 {
+        unsafe { melonds_rs_core_audio_sample_rate(self.inner) }
+    }
+
+    #[inline]
+    pub fn audio_available_samples(&mut self) -> usize {
+        unsafe { melonds_rs_core_audio_available(self.inner) }.max(0) as usize
+    }
+
+    #[inline]
+    pub fn read_audio(&mut self, out: &mut [i16]) -> usize {
+        let frames = (out.len() / 2) as i32;
+        if frames <= 0 {
+            return 0;
+        }
+        let read = unsafe { melonds_rs_core_audio_read(self.inner, out.as_mut_ptr(), frames) };
+        read.max(0) as usize
     }
 
     #[inline]

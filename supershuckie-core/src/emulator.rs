@@ -83,6 +83,23 @@ pub trait EmulatorCore: Send + 'static {
 
     /// Get the current core name.
     fn core_name(&self) -> &'static str;
+
+    /// Get the audio sample rate, if supported.
+    fn audio_sample_rate(&self) -> Option<u32> {
+        None
+    }
+
+    /// Get the number of available stereo audio frames, if supported.
+    fn audio_available_samples(&mut self) -> usize {
+        0
+    }
+
+    /// Read interleaved stereo audio samples into `out`.
+    ///
+    /// Returns the number of frames written.
+    fn read_audio(&mut self, _out: &mut [i16]) -> usize {
+        0
+    }
     
     /// Return true if the core is a null core.
     #[inline]

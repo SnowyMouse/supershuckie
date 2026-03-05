@@ -2,6 +2,7 @@
 
 #include "melonDS/src/NDS.h"
 #include "melonDS/src/Platform.h"
+#include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <semaphore>
@@ -12,6 +13,7 @@ static u64 ms;
 
 struct MelonDSCoreHolder {
     std::unique_ptr<NDS> nds;
+    double audio_sample_rate = 48000.0;
 };
 
 extern "C" MelonDSCoreHolder *melonds_rs_core_new(
@@ -53,6 +55,7 @@ extern "C" MelonDSCoreHolder *melonds_rs_core_new(
     holder->nds->LoadBIOS();
     holder->nds->SetupDirectBoot("nds.rom");
     holder->nds->Start();
+    holder->nds->SPU.SetOutputSampleRate(holder->audio_sample_rate);
 
     return holder;
 }
@@ -63,6 +66,18 @@ extern "C" void melonds_rs_core_free(MelonDSCoreHolder *core) {
 
 extern "C" void melonds_rs_core_run_frame(MelonDSCoreHolder *core) {
     core->nds->RunFrame();
+}
+
+extern "C" unsigned melonds_rs_core_audio_sample_rate(const MelonDSCoreHolder *core) {
+    return static_cast<unsigned>(core->audio_sample_rate);
+}
+
+extern "C" int melonds_rs_core_audio_available(MelonDSCoreHolder *core) {
+    return core->nds->SPU.GetOutputSize();
+}
+
+extern "C" int melonds_rs_core_audio_read(MelonDSCoreHolder *core, std::int16_t *out, int samples) {
+    return core->nds->SPU.ReadOutput(out, samples);
 }
 
 extern "C" u8 *melonds_rs_core_get_sram(const MelonDSCoreHolder *core, size_t &size) {

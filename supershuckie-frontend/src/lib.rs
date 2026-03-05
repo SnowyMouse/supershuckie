@@ -210,6 +210,18 @@ impl SuperShuckieFrontend {
         panic!("Out of controller indices");
     }
 
+    /// Get the audio sample rate, or 0 if audio is unsupported.
+    pub fn audio_sample_rate(&self) -> u32 {
+        self.core.audio_sample_rate().unwrap_or(0)
+    }
+
+    /// Read interleaved stereo audio samples into `out`.
+    ///
+    /// Returns the number of samples written.
+    pub fn read_audio(&self, out: &mut [i16]) -> usize {
+        self.core.read_audio(out)
+    }
+
     /// Get a list of all connected controllers.
     pub fn get_connected_controllers(&self) -> Vec<UTF8CString> {
         self.connected_controllers.iter().map(|(_,v)| v.to_owned()).collect()
