@@ -174,6 +174,20 @@ pub unsafe extern "C" fn supershuckie_frontend_set_current_save_file(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn supershuckie_frontend_get_current_save_file(
+    frontend: &mut SuperShuckieFrontend,
+    length: *mut usize
+) -> *const u8 {
+    let Some(n) = frontend.get_current_save_name() else {
+        return null()
+    };
+    if !length.is_null() {
+        unsafe { *length = n.len(); }
+    }
+    n.as_ptr()
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn supershuckie_frontend_hard_reset_console(
     frontend: &mut SuperShuckieFrontend
 ) {

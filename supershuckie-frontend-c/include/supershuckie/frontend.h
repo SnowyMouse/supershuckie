@@ -448,6 +448,13 @@ void supershuckie_frontend_load_or_create_save_file(struct SuperShuckieFrontendR
 void supershuckie_frontend_set_current_save_file(struct SuperShuckieFrontendRaw *frontend, const char *save_name);
 
 /**
+ * Get the current save file.
+ *
+ * Returns NULL if no current save file and does not write to length.
+ */
+char *supershuckie_frontend_get_current_save_file(const struct SuperShuckieFrontendRaw *frontend, size_t *length);
+
+/**
  * Hard reset the console, simulating switching off/on.
  */
 void supershuckie_frontend_hard_reset_console(struct SuperShuckieFrontendRaw *frontend);

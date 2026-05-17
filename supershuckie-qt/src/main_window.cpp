@@ -514,6 +514,9 @@ void MainWindow::set_up_replays_menu() {
     connect(this->play_replay, SIGNAL(triggered()), this, SLOT(do_play_replay()));
     connect(this->continue_last_replay, SIGNAL(triggered()), this, SLOT(do_continue_last_replay()));
 
+    // TODO: Finally add this!!!
+    this->resume_replay->setVisible(false);
+
     this->record_replay->setShortcut(QKeyCombination(Qt::ControlModifier, Qt::Key_R));
     this->resume_replay->setShortcut(QKeyCombination(Qt::ShiftModifier | Qt::ControlModifier, Qt::Key_R));
     this->play_replay->setShortcut(QKeyCombination(Qt::ShiftModifier | Qt::ControlModifier, Qt::Key_P));
@@ -803,7 +806,11 @@ void MainWindow::do_unload_rom() {
 }
 
 void MainWindow::do_new_game() noexcept {
-    auto text = AskForTextDialog::ask(this, "New game", "Enter the name of the new (empty) save file", "WARNING: If the file exists, it will be deleted immediately.");
+    std::size_t save_file_length = 0;
+    const char *current_save_file = supershuckie_frontend_get_current_save_file(this->frontend, &save_file_length);
+    std::string save_file(current_save_file, save_file_length);
+
+    auto text = AskForTextDialog::ask(this, "New game", "Enter the name of the new (empty) save file", "WARNING: If the file exists, it will be deleted immediately.", save_file.c_str());
     if(text == std::nullopt) {
         return;
     }
