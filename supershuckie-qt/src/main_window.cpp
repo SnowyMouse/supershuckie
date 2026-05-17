@@ -1,5 +1,5 @@
 // FIXME: we need this to be somewhere else
-#define SUPERSHUCKIE_VERSION "0.4.9"
+#define SUPERSHUCKIE_VERSION "0.4.10"
 
 #include <cstdio>
 #include <QLayout>

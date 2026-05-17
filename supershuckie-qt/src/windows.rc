@@ -9,11 +9,11 @@ BEGIN
             VALUE "Comments",         "SuperShuckie"
             VALUE "CompanyName",      "Snowy Mouse"
             VALUE "FileDescription",  "SuperShuckie"
-            VALUE "FileVersion",      "0.4.9.0"
+            VALUE "FileVersion",      "0.4.10.0"
             VALUE "InternalName",     "supershuckie"
             VALUE "OriginalFilename", "supershuckie.exe"
             VALUE "ProductName",      "supershuckie"
-            VALUE "ProductVersion",   "0.4.9.0"
+            VALUE "ProductVersion",   "0.4.10.0"
             VALUE "LegalCopyright",   "'25 Snowy Mouse"
         END
     END
