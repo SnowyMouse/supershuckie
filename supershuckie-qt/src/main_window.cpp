@@ -1,6 +1,8 @@
 // FIXME: we need this to be somewhere else
 #define SUPERSHUCKIE_VERSION "0.4.11"
 
+#include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <QLayout>
 #include <SDL3/SDL.h>
@@ -9,6 +11,7 @@
 #include <QStatusBar>
 #include <QFileDialog>
 #include <QFontDatabase>
+#include <QInputDialog>
 #include <QLabel>
 #include <QStandardPaths>
 #include <QDesktopServices>
@@ -39,6 +42,8 @@ static const char *WINDOW_XY = "qt__window_xy";
 static const char *DISPLAY_STATUS_BAR = "qt__display_status_bar";
 static const char *KEYBOARD_REPLAY_CONTROLS_DISABLED = "qt__replay_controls_disabled";
 static const char *HORIZONTAL_NDS = "qt__horizontal_nds";
+static const char *AUDIO_ENABLED = "qt__audio_enabled";
+static const char *AUDIO_VOLUME = "qt__audio_volume";
 
 class SuperShuckie64::SuperShuckieTimestamp: public QWidget {
 public:
@@ -209,6 +214,19 @@ MainWindow::MainWindow(): QMainWindow() {
         this->keyboard_replay_controls->setChecked(false);
     }
 
+    const char *audio_enabled_setting = supershuckie_frontend_get_custom_setting(this->frontend, AUDIO_ENABLED);
+    if(audio_enabled_setting != nullptr && audio_enabled_setting[0] == '0') {
+        this->audio_enabled = false;
+    }
+
+    const char *audio_volume_setting = supershuckie_frontend_get_custom_setting(this->frontend, AUDIO_VOLUME);
+    if(audio_volume_setting != nullptr) {
+        int volume = 100;
+        if(std::sscanf(audio_volume_setting, "%d", &volume) == 1) {
+            this->audio_volume = std::clamp(volume, 0, 100);
+        }
+    }
+
     const char *xy = supershuckie_frontend_get_custom_setting(this->frontend, WINDOW_XY);
     if(xy != nullptr) {
         int x;
@@ -231,6 +249,8 @@ MainWindow::MainWindow(): QMainWindow() {
     this->auto_resync_keyframes_in_replay->setChecked(supershuckie_frontend_get_auto_resync_keyframes_in_replay(this->frontend));
     this->disable_save_states_when_recording->setChecked(supershuckie_frontend_get_disable_save_states_when_recording(this->frontend));
     this->disable_speed_changes_when_recording->setChecked(supershuckie_frontend_get_disable_speed_changes_when_recording(this->frontend));
+    this->enable_audio->setChecked(this->audio_enabled);
+    this->refresh_audio_menu_text();
 
     this->sdl.frontend = this->frontend;
     this->render_widget->setFocus(Qt::OtherFocusReason);
@@ -349,6 +369,9 @@ void MainWindow::tick() {
     if(!supershuckie_frontend_tick(this->frontend, buf, sizeof(buf))) {
         DISPLAY_ERROR_DIALOG("Error!", "%s", buf);
     }
+
+    this->refresh_audio_stream();
+    this->pump_audio();
 
     this->pause->setChecked(supershuckie_frontend_is_paused(this->frontend));
 
@@ -631,6 +654,15 @@ void MainWindow::set_up_settings_menu() {
         action->setCheckable(true);
     }
 
+    auto *audio_settings = this->settings_menu->addMenu("Audio settings");
+
+    this->enable_audio = audio_settings->addAction("Enable sound");
+    this->enable_audio->setCheckable(true);
+    connect(this->enable_audio, SIGNAL(triggered()), this, SLOT(do_toggle_audio()));
+
+    this->set_audio_volume = audio_settings->addAction("Volume...");
+    connect(this->set_audio_volume, SIGNAL(triggered()), this, SLOT(do_set_audio_volume()));
+
     this->settings_menu->addSeparator();
 
     this->game_boy_settings = this->settings_menu->addMenu("Game Boy settings");
@@ -782,6 +814,8 @@ void MainWindow::do_open_rom() {
 
 void MainWindow::load_rom(const std::filesystem::path &path) {
     char error[256] = "";
+    this->destroy_audio_stream();
+    this->audio_failed_sample_rate = 0;
 
     auto path_string = path.string();
     if(!supershuckie_frontend_load_rom(this->frontend, path.string().c_str(), error, sizeof(error))) {
@@ -796,11 +830,15 @@ void MainWindow::load_rom(const char *path) {
 }
 
 void MainWindow::do_close_rom() {
+    this->destroy_audio_stream();
+    this->audio_failed_sample_rate = 0;
     supershuckie_frontend_close_rom(this->frontend);
     supershuckie_frontend_set_paused(this->frontend, false);
 }
 
 void MainWindow::do_unload_rom() {
+    this->destroy_audio_stream();
+    this->audio_failed_sample_rate = 0;
     supershuckie_frontend_unload_rom(this->frontend);
     supershuckie_frontend_set_paused(this->frontend, false);
 }
@@ -844,6 +882,8 @@ void MainWindow::do_save_new_game() {
 }
 
 void MainWindow::do_reset_console() {
+    this->destroy_audio_stream();
+    this->audio_failed_sample_rate = 0;
     supershuckie_frontend_hard_reset_console(this->frontend);
 }
 
@@ -887,6 +927,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 }
 
 MainWindow::~MainWindow() {
+    this->destroy_audio_stream();
     if(this->frontend) {
         supershuckie_frontend_free(this->frontend);
         this->frontend = nullptr;
@@ -1048,6 +1089,42 @@ void MainWindow::do_toggle_status_bar() {
     this->refresh_title();
 }
 
+void MainWindow::do_toggle_audio() {
+    this->audio_enabled = this->enable_audio->isChecked();
+    supershuckie_frontend_set_custom_setting(this->frontend, AUDIO_ENABLED, this->audio_enabled ? "1" : "0");
+    this->audio_failed_sample_rate = 0;
+
+    if(!this->audio_enabled) {
+        this->destroy_audio_stream();
+    }
+}
+
+void MainWindow::do_set_audio_volume() {
+    bool ok = false;
+    int volume = QInputDialog::getInt(
+        this,
+        "Audio volume",
+        "Volume percentage:",
+        this->audio_volume,
+        0,
+        100,
+        5,
+        &ok
+    );
+
+    if(!ok) {
+        return;
+    }
+
+    this->audio_volume = volume;
+    this->refresh_audio_menu_text();
+    this->apply_audio_gain();
+
+    char buf[16];
+    std::snprintf(buf, sizeof(buf), "%d", this->audio_volume);
+    supershuckie_frontend_set_custom_setting(this->frontend, AUDIO_VOLUME, buf);
+}
+
 void MainWindow::do_toggle_pokeabyte() {
     char err[256];
 
@@ -1150,6 +1227,8 @@ void MainWindow::do_toggle_horizontal_nds() {
 }
 
 void MainWindow::do_toggle_nds_jit() {
+    this->destroy_audio_stream();
+    this->audio_failed_sample_rate = 0;
     supershuckie_frontend_set_nds_jit(this->frontend, this->nds_jit->isChecked());
 }
 
@@ -1176,7 +1255,124 @@ void MainWindow::do_clear_recent_roms() {
 }
 
 void MainWindow::do_reload_core() {
+    this->destroy_audio_stream();
+    this->audio_failed_sample_rate = 0;
     supershuckie_frontend_reload_core(this->frontend);
+}
+
+void MainWindow::refresh_audio_stream() {
+    if(this->frontend == nullptr) {
+        this->destroy_audio_stream();
+        this->audio_failed_sample_rate = 0;
+        return;
+    }
+
+    if(!this->audio_enabled) {
+        this->destroy_audio_stream();
+        return;
+    }
+
+    std::uint32_t desired_sample_rate = supershuckie_frontend_get_audio_sample_rate(this->frontend);
+    if(desired_sample_rate == 0) {
+        this->destroy_audio_stream();
+        this->audio_failed_sample_rate = 0;
+        return;
+    }
+
+    if(this->audio_stream != nullptr && this->audio_sample_rate == desired_sample_rate) {
+        return;
+    }
+
+    if(this->audio_stream == nullptr && this->audio_failed_sample_rate == desired_sample_rate) {
+        return;
+    }
+
+    this->destroy_audio_stream();
+
+    SDL_AudioSpec spec = {};
+    spec.format = SDL_AUDIO_S16;
+    spec.channels = 2;
+    spec.freq = static_cast<int>(desired_sample_rate);
+
+    this->audio_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
+    if(this->audio_stream == nullptr) {
+        std::fprintf(stderr, "Failed to open audio stream: %s\n", SDL_GetError());
+        this->audio_failed_sample_rate = desired_sample_rate;
+        return;
+    }
+
+    if(!SDL_ResumeAudioStreamDevice(this->audio_stream)) {
+        std::fprintf(stderr, "Failed to resume audio stream: %s\n", SDL_GetError());
+        this->destroy_audio_stream();
+        this->audio_failed_sample_rate = desired_sample_rate;
+        return;
+    }
+
+    this->audio_sample_rate = desired_sample_rate;
+    this->audio_failed_sample_rate = 0;
+    this->apply_audio_gain();
+}
+
+void MainWindow::pump_audio() {
+    if(this->audio_stream == nullptr || this->frontend == nullptr || this->audio_sample_rate == 0) {
+        return;
+    }
+
+    int queued = SDL_GetAudioStreamQueued(this->audio_stream);
+    if(queued < 0) {
+        std::fprintf(stderr, "Failed to query queued audio: %s\n", SDL_GetError());
+        return;
+    }
+
+    constexpr int CHANNELS = 2;
+    constexpr int CHUNK_FRAMES = 1024;
+    constexpr int TARGET_BUFFER_MS = 25;
+    constexpr int BYTES_PER_SAMPLE = sizeof(std::int16_t);
+    const int target_bytes = static_cast<int>(
+        (static_cast<std::uint64_t>(this->audio_sample_rate) * CHANNELS * BYTES_PER_SAMPLE * TARGET_BUFFER_MS) / 1000
+    );
+
+    while(queued < target_bytes) {
+        std::int16_t samples[CHUNK_FRAMES * CHANNELS];
+        std::size_t read = supershuckie_frontend_read_audio(this->frontend, samples, sizeof(samples) / sizeof(samples[0]));
+        read &= ~static_cast<std::size_t>(1);
+        if(read == 0) {
+            break;
+        }
+
+        int bytes = static_cast<int>(read * sizeof(samples[0]));
+        if(!SDL_PutAudioStreamData(this->audio_stream, samples, bytes)) {
+            std::fprintf(stderr, "Failed to queue audio: %s\n", SDL_GetError());
+            this->destroy_audio_stream();
+            return;
+        }
+
+        queued += bytes;
+    }
+}
+
+void MainWindow::destroy_audio_stream() {
+    if(this->audio_stream != nullptr) {
+        SDL_DestroyAudioStream(this->audio_stream);
+        this->audio_stream = nullptr;
+    }
+    this->audio_sample_rate = 0;
+}
+
+void MainWindow::apply_audio_gain() {
+    if(this->audio_stream == nullptr) {
+        return;
+    }
+
+    if(!SDL_SetAudioStreamGain(this->audio_stream, static_cast<float>(this->audio_volume) / 100.0f)) {
+        std::fprintf(stderr, "Failed to set audio gain: %s\n", SDL_GetError());
+    }
+}
+
+void MainWindow::refresh_audio_menu_text() {
+    if(this->set_audio_volume != nullptr) {
+        this->set_audio_volume->setText(QString("Volume... (%1%)").arg(this->audio_volume));
+    }
 }
 
 void MainWindow::do_toggle_external_commands() {

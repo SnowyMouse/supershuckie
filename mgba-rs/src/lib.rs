@@ -25,6 +25,9 @@ unsafe extern "C" {
     fn mgba_rs_core_load_save_state(core: *mut MGBACoreRaw, data: *const u8, data_size: usize) -> bool;
     fn mgba_rs_core_get_ewram(core: *mut MGBACoreRaw) -> *mut [u8; 0x40000];
     fn mgba_rs_core_get_iwram(core: *mut MGBACoreRaw) -> *mut [u8; 0x8000];
+    fn mgba_rs_core_audio_sample_rate(core: *const MGBACoreRaw) -> u32;
+    fn mgba_rs_core_audio_available(core: *mut MGBACoreRaw) -> usize;
+    fn mgba_rs_core_audio_read(core: *mut MGBACoreRaw, out: *mut i16, samples: usize) -> usize;
 }
 
 pub struct Core {
@@ -107,6 +110,25 @@ impl Core {
     #[inline]
     pub fn get_iwram_mut(&mut self) -> &mut [u8] {
         unsafe { &mut *mgba_rs_core_get_iwram(self.inner) }.as_mut_slice()
+    }
+
+    #[inline]
+    pub fn audio_sample_rate(&self) -> u32 {
+        unsafe { mgba_rs_core_audio_sample_rate(self.inner) }
+    }
+
+    #[inline]
+    pub fn audio_available_samples(&mut self) -> usize {
+        unsafe { mgba_rs_core_audio_available(self.inner) }
+    }
+
+    #[inline]
+    pub fn read_audio(&mut self, out: &mut [i16]) -> usize {
+        let frames = out.len() / 2;
+        if frames == 0 {
+            return 0;
+        }
+        unsafe { mgba_rs_core_audio_read(self.inner, out.as_mut_ptr(), frames) }
     }
 }
 

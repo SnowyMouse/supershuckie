@@ -4,7 +4,7 @@ use crate::{SuperShuckieCore, SuperShuckieRapidFire};
 use spin::RwLock;
 use std::borrow::ToOwned;
 use std::boxed::Box;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::format;
 use std::fs::File;
 use std::string::String;
@@ -37,7 +37,9 @@ pub struct ThreadedSuperShuckieCore {
     playback_total_frames: UnsignedInteger,
     playback_total_milliseconds: TimestampMillis,
     replay_errors: Arc<Mutex<Vec<ReplayFileWriteError>>>,
-    replay_counters: Arc<Mutex<BTreeMap<String, SignedInteger>>>
+    replay_counters: Arc<Mutex<BTreeMap<String, SignedInteger>>>,
+    audio_buffer: Arc<Mutex<AudioBuffer>>,
+    audio_sample_rate: Arc<AtomicU32>,
 }
 
 /// Current elapsed time, retrieved atomically (the frame count corresponds to milliseconds and vice versa).
@@ -49,12 +51,67 @@ pub struct ElapsedTimeStats {
     pub speed: Speed
 }
 
+struct AudioBuffer {
+    data: VecDeque<i16>,
+    max_samples: usize,
+}
+
+impl AudioBuffer {
+    fn new(max_samples: usize) -> Self {
+        Self {
+            data: VecDeque::new(),
+            max_samples: max_samples.max(2) & !1,
+        }
+    }
+
+    fn set_max_samples(&mut self, max_samples: usize) {
+        self.max_samples = (max_samples.max(2) & !1).max(2);
+        self.trim_to_max();
+    }
+
+    fn trim_to_max(&mut self) {
+        while self.data.len() > self.max_samples {
+            self.data.pop_front();
+        }
+    }
+
+    fn push_samples(&mut self, samples: &[i16]) {
+        let samples = &samples[..samples.len() & !1];
+        if samples.is_empty() {
+            return;
+        }
+
+        if samples.len() >= self.max_samples {
+            self.data.clear();
+            self.data.extend(samples[samples.len() - self.max_samples..].iter().copied());
+            return;
+        }
+
+        let overflow = self.data.len().saturating_add(samples.len()).saturating_sub(self.max_samples);
+        for _ in 0..overflow {
+            self.data.pop_front();
+        }
+
+        self.data.extend(samples.iter().copied());
+    }
+
+    fn pop_into(&mut self, out: &mut [i16]) -> usize {
+        let count = out.len().min(self.data.len()) & !1;
+        for slot in out.iter_mut().take(count) {
+            *slot = self.data.pop_front().expect("audio buffer length changed unexpectedly");
+        }
+        count
+    }
+}
+
 impl ThreadedSuperShuckieCore {
     /// Wrap the given `core`.
     pub fn new(emulator_core: Box<dyn EmulatorCore>) -> Self {
         let screens = Arc::new(Mutex::new(emulator_core.get_screens().to_vec()));
         let (sender, receiver) = channel();
         let (sender_close, receiver_close) = channel();
+        let audio_buffer = Arc::new(Mutex::new(AudioBuffer::new(9600)));
+        let audio_sample_rate = Arc::new(AtomicU32::new(0));
 
         let playback_total_frames = 0;
         let playback_total_milliseconds = TimestampMillis(0);
@@ -76,6 +133,8 @@ impl ThreadedSuperShuckieCore {
             let replay_counters = replay_counters.clone();
             let playback_paused = playback_paused.clone();
             let replay_stalled = replay_stalled.clone();
+            let audio_buffer = audio_buffer.clone();
+            let audio_sample_rate = audio_sample_rate.clone();
             let _ = std::thread::Builder::new().name("ThreadedSuperShuckieCore".to_owned()).spawn(move || {
                 ThreadedSuperShuckieCoreThread {
                     screens,
@@ -94,7 +153,9 @@ impl ThreadedSuperShuckieCore {
                     replay_stalled,
                     playback_frozen: false,
                     freezes: BTreeMap::new(),
-                    playback_paused
+                    playback_paused,
+                    audio_buffer,
+                    audio_sample_rate,
                 }.run_thread();
             });
         }
@@ -112,8 +173,24 @@ impl ThreadedSuperShuckieCore {
             desired_replay_frame,
             delta_replay_frames,
             playback_paused,
-            replay_stalled
+            replay_stalled,
+            audio_buffer,
+            audio_sample_rate,
         }
+    }
+
+    /// Get the audio sample rate, if supported.
+    pub fn audio_sample_rate(&self) -> Option<u32> {
+        let rate = self.audio_sample_rate.load(Ordering::Relaxed);
+        if rate == 0 { None } else { Some(rate) }
+    }
+
+    /// Read interleaved stereo audio samples into `out`.
+    ///
+    /// Returns the number of samples written.
+    pub fn read_audio(&self, out: &mut [i16]) -> usize {
+        let mut lock = self.audio_buffer.lock().expect("audio mutex is poisoned");
+        lock.pop_into(out)
     }
 
     /// Get the elapsed time.
@@ -468,6 +545,8 @@ struct ThreadedSuperShuckieCoreThread {
 
     freezes: BTreeMap<u64, ByteVec>,
     replay_stalled: Arc<AtomicBool>,
+    audio_buffer: Arc<Mutex<AudioBuffer>>,
+    audio_sample_rate: Arc<AtomicU32>,
 }
 
 impl ThreadedSuperShuckieCoreThread {
@@ -492,6 +571,7 @@ impl ThreadedSuperShuckieCoreThread {
             if self.is_running() {
                 if !self.playback_frozen {
                     self.core.run();
+                    self.pull_audio();
                 }
             }
             else if self.core.replay_player.is_none() {
@@ -511,6 +591,40 @@ impl ThreadedSuperShuckieCoreThread {
         self.pokeabyte_integration = None;
 
         let _ = self.sender_close.send(());
+    }
+
+    fn pull_audio(&mut self) {
+        const CHUNK_FRAMES: usize = 1024;
+
+        let Some(rate) = self.core.audio_sample_rate() else {
+            return;
+        };
+        self.audio_sample_rate.store(rate, Ordering::Relaxed);
+        if let Ok(mut buf) = self.audio_buffer.lock() {
+            let max_samples = ((rate as usize) * 2 * 50 / 1000).max(CHUNK_FRAMES * 2);
+            buf.set_max_samples(max_samples);
+        }
+
+        let mut available = self.core.audio_available_samples();
+        if available == 0 {
+            return;
+        }
+
+        let mut temp = [0i16; CHUNK_FRAMES * 2];
+
+        while available > 0 {
+            let frames = available.min(CHUNK_FRAMES);
+            let samples_len = frames * 2;
+            let read_frames = self.core.read_audio(&mut temp[..samples_len]);
+            if read_frames == 0 {
+                break;
+            }
+            let read_samples = read_frames * 2;
+            if let Ok(mut buf) = self.audio_buffer.lock() {
+                buf.push_samples(&temp[..read_samples]);
+            }
+            available = available.saturating_sub(read_frames);
+        }
     }
 
     fn check_if_replay_stalled(&mut self) {
