@@ -1207,6 +1207,10 @@ impl SuperShuckieFrontend {
                             let _ = t.send(false);
                         }
                     }
+                    SuperShuckieServerCommand::LoadROM(t, path) => {
+                        let _ = t.send(self.load_rom(&path).map_err(|e| e.to_string()));
+                        reset_stats(&mut stats);
+                    }
                 }
             }
 

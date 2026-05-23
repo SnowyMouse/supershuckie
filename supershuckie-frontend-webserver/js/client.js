@@ -96,6 +96,15 @@ export class SuperShuckieClient {
         await this._handle_error(result)
     }
 
+    async load_rom(path) {
+        if(typeof path !== "string") {
+            throw new TypeError("load_rom path must be a string")
+        }
+
+        const result = await fetch(this._construct_url(`load-rom?path=${path}`))
+        await this._handle_error(result)
+    }
+
     _construct_url(resource) {
         return new URL(resource, this._server)
     }

@@ -56,6 +56,12 @@ export class SuperShuckieClient {
     load_replay(name: string): Promise<void>
 
     /**
+     * Load the rom at the given path
+     * @param path path of ROM
+     */
+    load_rom(path: string): Promise<void>
+
+    /**
      * Set the speed
      * @param speed speed multiplayer (1 = 100%, 2 = 200%, 0.5 = 50%, etc.)
      */

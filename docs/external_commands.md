@@ -159,6 +159,20 @@ Arguments:
 |----------|------------|-------------------------|
 | `name`   | (required) | The name of the replay. |
 
+### load-rom
+
+Load a rom.
+
+Usage:
+
+- `http://127.0.0.1:30158/load-rom?path=PATH`
+
+Arguments:
+
+| Argument | Default    | Description          |
+|----------|------------|----------------------|
+| `path`   | (required) | The path to the ROM. |
+
 ### mark-start
 
 Mark the start of a replay and enables the timer feature. A replay must be

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::net::ToSocketAddrs;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::*;
@@ -247,6 +248,25 @@ impl SuperShuckieWebserver {
                         Err(_) => return emulator_not_available_error()
                     }
                 }
+                "/load-rom" => {
+                    let Some(path) = request.get_param("path") else {
+                        return Response::json(&Error {
+                            error: "failed (missing the path parameter)".to_owned()
+                        }).with_status_code(400);
+                    };
+
+                    let (sender, response) = channel();
+
+                    if backlog_sender.try_send(SuperShuckieServerCommand::LoadROM(sender, path.into())).is_err() {
+                        return emulator_not_available_error();
+                    };
+
+                    match response.recv_timeout(Duration::from_secs(60)) {
+                        Ok(Ok(_)) => Response::empty_204(),
+                        Ok(Err(error)) => Response::json(&Error { error }).with_status_code(404),
+                        Err(_) => return emulator_not_available_error()
+                    }
+                }
                 "/client.js" => {
                     Response::text(include_str!("../js/client.js"))
                         .with_unique_header(
@@ -303,6 +323,7 @@ pub enum SuperShuckieServerCommand {
     LoadReplay(Sender<bool>, String),
     EnumerateReplays(Sender<Arc<Vec<String>>>),
     SetPlaybackSpeed(Sender<bool>, f64),
+    LoadROM(Sender<Result<(), String>>, PathBuf)
 }
 
 #[derive(Clone, Serialize)]
